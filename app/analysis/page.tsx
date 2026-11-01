@@ -49,16 +49,23 @@ export default function AnalysisPage() {
   return <main className="min-h-screen bg-slate-950 p-8 text-slate-100">
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
-        <p className="text-sm uppercase tracking-[0.25em] text-cyan-400">TRAINING ENGINE</p>
-        <h1 className="mt-2 text-4xl font-semibold">Analiza treningu</h1>
-        <p className="mt-2 text-slate-400">Analiza oparta na rzeczywistych treningach zsynchronizowanych z Garmin Connect.</p>
+        <p className="text-sm uppercase tracking-[0.25em] text-cyan-400">OSOBISTY TRENER</p>
+        <h1 className="mt-2 text-4xl font-semibold">Moja forma</h1>
+        <p className="mt-2 text-slate-400">Coach analizuje rzeczywiste treningi z Garmina i pokazuje, jak idzie progres.</p>
       </header>
+      <section className="rounded-3xl border border-cyan-900/60 bg-slate-900/80 p-6">
+        <p className="text-sm text-slate-400">Ocena aktualnej formy</p>
+        <h2 className="mt-1 text-3xl font-bold">{result.trainingStatus === "BUILDING" ? "Forma rośnie ↗" : result.trainingStatus === "FATIGUED" ? "Organizm zmęczony ↓" : result.trainingStatus === "STABLE" ? "Forma stabilna →" : "Za mało danych"}</h2>
+        {result.formScore !== null && <p className="mt-2 text-slate-400">Form Score: <span className="font-semibold text-white">{result.formScore}/100</span></p>}
+        <p className="mt-3 text-slate-300">{result.efficiencyChangePct !== null ? `Efektywność Power/HR zmieniła się o ${result.efficiencyChangePct > 0 ? "+" : ""}${result.efficiencyChangePct}% względem wcześniejszej części ostatnich 28 dni. ` : ""}{result.hardSessions7d >= 3 ? "Masz sporo mocnych jednostek — regeneracja jest teraz ważna." : "Liczba mocnych jednostek nie wygląda obecnie na nadmierną."}</p>
+      </section>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Load 7d" value={String(result.load7d)} />
         <Metric label="Load 28d" value={String(result.load28d)} />
         <Metric label="Godziny 7d" value={String(result.hours7d) + " h"} />
         <Metric label="Moc / HR" value={result.powerHrEfficiency ? String(result.powerHrEfficiency) : "Brak danych"} />
+        <Metric label="Form Score" value={result.formScore !== null ? String(result.formScore) + "/100" : "—"} />
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">

@@ -6,8 +6,10 @@ import { decideToday } from "@/lib/coach/decision";
 import { adjustPlan } from "@/lib/coach/plan-adjuster";
 import type { PlannedWorkout } from "@/lib/coach/plan-builder";
 
+type Feeling = "great" | "good" | "average" | "tired" | "wrecked";
+
 export default function CheckInPage() {
-  const [feeling, setFeeling] = useState("good");
+  const [feeling, setFeeling] = useState<Feeling>("good");
   const [minutes, setMinutes] = useState(60);
   const [nightShift, setNightShift] = useState(false);
   const [message, setMessage] = useState("");
@@ -100,7 +102,7 @@ export default function CheckInPage() {
       const adjusted = adjustPlan({
         plan,
         date,
-        feeling: feeling as PlannedWorkout extends never ? never : "great" | "good" | "average" | "tired" | "wrecked",
+        feeling,
         availableMinutes: minutes,
         nightShift,
       });

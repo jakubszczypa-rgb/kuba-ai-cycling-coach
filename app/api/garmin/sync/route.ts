@@ -24,7 +24,10 @@ async function syncGarmin(profileId: string, supabase: ReturnType<typeof createS
   const endDate = now.toISOString().slice(0, 10);
   const startDate = getDateDaysAgo(28);
 
-  const activities = await garmin.searchActivities({ startDate, endDate, limit: 100, start: 0 });
+  // Garmin activity search is more reliable when we request the latest activities first
+  // and apply the 28-day window locally. Health endpoints already support date ranges directly.
+  const activities = await garmin.searchActivities({ limit: 100, start: 0 });
+  const startBoundary = new Date(`${startDate}T00:00:00.000Z`).getTime();
   let activityCount = 0;
 
   for (const activity of activities ?? []) {
@@ -32,6 +35,7 @@ async function syncGarmin(profileId: string, supabase: ReturnType<typeof createS
     const activityId = text(a.activityId ?? a.activityID);
     const activityStart = dateTime(a.startTimeLocal ?? a.startTimeGMT ?? a.activityStartTime);
     if (!activityId || !activityStart) continue;
+    if (new Date(activityStart).getTime() < startBoundary) continue;
 
     const activityType = a.activityType as Record<string, unknown> | null;
 

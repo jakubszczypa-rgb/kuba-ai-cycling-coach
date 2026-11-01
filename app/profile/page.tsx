@@ -19,6 +19,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
 
   async function loadProfile() {
     const supabase = createClient();
@@ -48,6 +50,24 @@ export default function ProfilePage() {
   }
 
   useEffect(() => { loadProfile(); }, []);
+
+  async function syncGarmin() {
+    setSyncing(true);
+    setSyncMessage("");
+    try {
+      const response = await fetch("/api/garmin/sync", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setSyncMessage(data?.error || "Synchronizacja Garmin nie powiodła się.");
+        return;
+      }
+      setSyncMessage(`Garmin zsynchronizowany: ${data.activities ?? 0} treningów, ${data.health ?? 0} dni danych zdrowotnych.`);
+    } catch {
+      setSyncMessage("Nie udało się połączyć z usługą synchronizacji Garmin.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function saveProfile() {
     if (!profile) return;
@@ -93,12 +113,16 @@ export default function ProfilePage() {
           <label className="mt-4 block text-sm text-slate-400">Główny cel</label>
           <textarea value={profile.primary_goal ?? ""} onChange={e => setProfile({...profile, primary_goal:e.target.value})}
             className="mt-2 min-h-24 w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 outline-none" />
-          <div className="mt-5 flex items-center gap-4">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <button onClick={saveProfile} disabled={saving} className="rounded-xl bg-white px-5 py-3 font-semibold text-black disabled:opacity-50">
               {saving ? "Zapisywanie..." : "Zapisz profil"}
             </button>
+            <button onClick={syncGarmin} disabled={syncing} className="rounded-xl border border-cyan-400 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-200 disabled:opacity-50">
+              {syncing ? "Synchronizuję Garmin..." : "Synchronizuj Garmin"}
+            </button>
             {message && <span className="text-sm text-slate-400">{message}</span>}
           </div>
+          {syncMessage && <p className="mt-3 text-sm text-cyan-300">{syncMessage}</p>}
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

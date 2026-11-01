@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { buildPlan, type PlannedWorkout } from "@/lib/coach/plan-builder";
+import { buildPlan } from "@/lib/coach/plan-builder";
 
 type ScheduleDay = {
   date: string;

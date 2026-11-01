@@ -44,7 +44,7 @@ export default function AnalysisPage() {
     load();
   }, []);
 
-  const chart = buildWeeklyChart(activities, 90);
+  const chart = buildWeeklyChart(activities, 180);
   if (!result) return <main className="min-h-screen bg-slate-950 p-8 text-slate-300">{message}</main>;
 
   return <main className="min-h-screen bg-slate-950 p-8 text-slate-100">

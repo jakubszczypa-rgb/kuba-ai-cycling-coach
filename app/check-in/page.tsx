@@ -50,7 +50,7 @@ export default function CheckInPage() {
       profile = created.data;
     }
 
-    const date = new Date().toISOString().slice(0, 10);
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
     const { error: statusError } = await supabase.from("daily_status").upsert({
       athlete_id: profile.id,

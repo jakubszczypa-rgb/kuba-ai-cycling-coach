@@ -68,13 +68,12 @@ export async function GET() {
     tss: a.tss ?? a.training_load,
   }));
 
-  const analytics = analyzeTraining(activities);
+  const ftpW = profile.current_ftp_w ?? 238;
+  const analytics = analyzeTraining(activities, ftpW);
   const feeling = (status?.feeling ?? "good") as CoachInput["feeling"];
   const availableMinutes = status?.available_minutes ?? 60;
   const nightShift = status?.night_shift ?? false;
   const illness = status?.illness ?? false;
-  const ftpW = profile.current_ftp_w ?? 238;
-
   const input: CoachInput = {
     feeling,
     availableMinutes,

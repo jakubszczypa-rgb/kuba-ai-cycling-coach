@@ -21,22 +21,16 @@ export default function AnalysisPage() {
         .select("id,current_ftp_w").eq("user_id", user.id).maybeSingle();
       if (!profile) { setMessage("Brak profilu zawodnika."); return; }
 
-      const { data, error } = await supabase.from("garmin_activities")
-        .select("activity_start,duration_sec,avg_power_w,normalized_power_w,avg_hr,tss,sport")
-        .eq("athlete_id", profile.id).order("activity_start", { ascending: false }).limit(500);
-
-      if (error) { setMessage("Nie udało się pobrać treningów: " + error.message); return; }
-
-      const rows: ActivityRow[] = (data ?? []).map((a: any) => ({
-        date: a.activity_start,
-        durationMinutes: (a.duration_sec ?? 0) / 60,
-        avgPowerW: a.avg_power_w,
-        normalizedPowerW: a.normalized_power_w,
-        avgHr: a.avg_hr,
-        tss: a.tss,
-        sport: a.sport,
+      const [{ data: stravaData, error: stravaError }, { data: garminData, error: garminError }] = await Promise.all([
+        supabase.from("strava_activities").select("activity_start,duration_sec,avg_power_w,weighted_power_w,avg_hr,suffer_score,sport,name").eq("athlete_id", profile.id).order("activity_start", { ascending: false }).limit(500),
+        supabase.from("garmin_activities").select("activity_start,duration_sec,avg_power_w,normalized_power_w,avg_hr,tss,sport").eq("athlete_id", profile.id).order("activity_start", { ascending: false }).limit(500),
+      ]);
+      if (stravaError && garminError) { setMessage("Nie udało się pobrać treningów: " + (stravaError.message || garminError.message)); return; }
+      const rows: ActivityRow[] = (stravaData?.length ? stravaData : (garminData ?? [])).map((a: any) => ({
+        date: a.activity_start, durationMinutes: (a.duration_sec ?? 0) / 60, avgPowerW: a.avg_power_w,
+        normalizedPowerW: a.weighted_power_w ?? a.normalized_power_w, avgHr: a.avg_hr,
+        tss: a.suffer_score ?? a.tss, sport: a.sport,
       }));
-
       setActivities(rows);
       setResult(analyzeTraining(rows, profile.current_ftp_w ?? 238));
       setMessage("");

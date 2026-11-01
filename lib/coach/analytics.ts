@@ -16,6 +16,12 @@ export type TrainingAnalytics = {
   efficiencyTrend: "IMPROVING" | "STABLE" | "DECLINING" | "INSUFFICIENT_DATA";
   loadRatio7to28: number;
   hardSessions7d: number;
+  trainingStatus: "BUILDING" | "STABLE" | "FATIGUED" | "INSUFFICIENT_DATA";
+  formScore: number | null;
+  efficiencyChangePct: number | null;
+  avgPower7d: number | null;
+  avgHr7d: number | null;
+  consistency7d: number;
 };
 
 function daysAgo(days: number) {
@@ -58,6 +64,24 @@ export function analyzeTraining(activities: ActivitySample[], ftpW = 238): Train
     return tss >= 60 || (a.avgPowerW ?? 0) > 0 && (a.avgPowerW! >= 0.88 * ftpW);
   }).length;
 
+  const efficiencyChangePct = recentEfficiency !== null && olderEfficiency !== null && olderEfficiency > 0
+    ? Math.round(((recentEfficiency - olderEfficiency) / olderEfficiency) * 1000) / 10
+    : null;
+  const avgPower7d = recent.length ? Math.round(recent.reduce((s,a) => s + (a.avgPowerW ?? 0), 0) / recent.length) : null;
+  const hrValues = recent.filter(a => (a.avgHr ?? 0) > 0);
+  const avgHr7d = hrValues.length ? Math.round(hrValues.reduce((s,a) => s + (a.avgHr ?? 0), 0) / hrValues.length) : null;
+  const consistency7d = Math.min(100, Math.round((recent.length / 4) * 100));
+  const loadRatio = load28d ? load7d / load28d : 0;
+  let trainingStatus: TrainingAnalytics["trainingStatus"] = "INSUFFICIENT_DATA";
+  let formScore: number | null = null;
+  if (month.length >= 3) {
+    const efficiencyScore = efficiencyChangePct === null ? 50 : Math.max(0, Math.min(100, 50 + efficiencyChangePct * 5));
+    const loadScore = loadRatio > 0.55 ? 35 : loadRatio > 0.4 ? 55 : loadRatio >= 0.2 ? 75 : 45;
+    const intensityScore = hardSessions7d >= 4 ? 35 : hardSessions7d === 3 ? 55 : 75;
+    formScore = Math.round(efficiencyScore * 0.45 + loadScore * 0.25 + intensityScore * 0.2 + consistency7d * 0.1);
+    trainingStatus = formScore >= 70 ? "BUILDING" : formScore >= 52 ? "STABLE" : "FATIGUED";
+  }
+
   return {
     load7d: Math.round(load7d),
     load28d: Math.round(load28d),
@@ -67,5 +91,11 @@ export function analyzeTraining(activities: ActivitySample[], ftpW = 238): Train
     efficiencyTrend,
     loadRatio7to28: load28d ? Math.round((load7d / load28d) * 100) / 100 : 0,
     hardSessions7d,
+    trainingStatus,
+    formScore,
+    efficiencyChangePct,
+    avgPower7d,
+    avgHr7d,
+    consistency7d,
   };
 }

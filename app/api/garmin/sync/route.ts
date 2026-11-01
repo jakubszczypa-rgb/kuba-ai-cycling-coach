@@ -20,14 +20,15 @@ function dateTime(value: unknown): string | null {
 
 async function syncGarmin(profileId: string, supabase: ReturnType<typeof createServiceClient>) {
   const garmin = getGarminClient();
-  const endDate = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const endDate = now.toISOString().slice(0, 10);
   const startDate = getDateDaysAgo(28);
 
   const activities = await garmin.searchActivities({ startDate, endDate, limit: 100, start: 0 });
   let activityCount = 0;
 
   for (const activity of activities ?? []) {
-    const a = activity as Record<string, any>;
+    const a = activity as Record<string, unknown>;
     const activityId = text(a.activityId ?? a.activityID);
     const activityStart = dateTime(a.startTimeLocal ?? a.startTimeGMT ?? a.activityStartTime);
     if (!activityId || !activityStart) continue;

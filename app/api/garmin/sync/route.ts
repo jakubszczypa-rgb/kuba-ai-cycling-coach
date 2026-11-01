@@ -7,7 +7,9 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 function text(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
+  if (typeof value === "string" && value.length > 0) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
 }
 function bool(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
@@ -48,14 +50,14 @@ async function syncGarmin(profileId: string, supabase: ReturnType<typeof createS
       duration_sec: num(a.duration),
       distance_m: num(a.distance),
       elevation_gain_m: num(a.elevationGain),
-      avg_power_w: num(a.averagePower),
+      avg_power_w: num(a.avgPower ?? a.averagePower),
       normalized_power_w: num(a.normPower ?? a.normalizedPower),
       max_power_w: num(a.maxPower),
       intensity_factor: num(a.intensityFactor),
       tss: num(a.trainingStressScore ?? a.tss),
       avg_hr: num(a.averageHR),
       max_hr: num(a.maxHR),
-      avg_cadence: num(a.averageBikingCadence ?? a.averageCadence),
+      avg_cadence: num(a.averageBikingCadenceInRevPerMinute ?? a.averageBikingCadence ?? a.averageCadence),
       calories: num(a.calories),
       training_load: num(a.activityTrainingLoad ?? a.trainingLoad),
       raw_data: a,

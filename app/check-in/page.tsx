@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { decideToday } from "@/lib/coach/decision";
 import { adjustPlan } from "@/lib/coach/plan-adjuster";
 import type { PlannedWorkout } from "@/lib/coach/plan-builder";
 
@@ -14,8 +13,6 @@ export default function CheckInPage() {
   const [nightShift, setNightShift] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-
-  const decision = decideToday({ feeling, availableMinutes: minutes, nightShift });
 
   async function saveCheckIn() {
     setSaving(true);
@@ -66,17 +63,10 @@ export default function CheckInPage() {
       return;
     }
 
-    const { error: decisionError } = await supabase.from("coach_decisions").insert({
-      athlete_id: profile.id,
-      decision_date: date,
-      decision: decision.decision,
-      intensity: decision.intensity,
-      duration_minutes: decision.durationMinutes,
-      workout_type: decision.workoutType,
-      confidence: decision.confidence,
-      reasoning: decision.reasoning,
-      input_snapshot: { feeling, availableMinutes: minutes, nightShift },
-    });
+    const coachResponse = await fetch("/api/coach/today", { cache: "no-store" });
+    const coachData = await coachResponse.json();
+    const decision = coachData?.decision;
+    const decisionError = !coachResponse.ok || !decision;
 
     // Load the current plan window and let the coach reschedule it.
     const { data: planRows, error: planLoadError } = await supabase

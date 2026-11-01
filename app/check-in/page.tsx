@@ -27,19 +27,9 @@ export default function CheckInPage() {
       return;
     }
 
-    let { data: profile } = await supabase
-      .from("athlete_profile")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
+    let { data: profile } = await supabase.from("athlete_profile").select("id").eq("user_id", user.id).maybeSingle();
     if (!profile) {
-      const created = await supabase
-        .from("athlete_profile")
-        .insert({ user_id: user.id, name: "Kuba" })
-        .select("id")
-        .single();
-
+      const created = await supabase.from("athlete_profile").insert({ user_id: user.id, name: "Kuba" }).select("id").single();
       if (created.error) {
         setMessage("Nie udało się utworzyć profilu zawodnika.");
         setSaving(false);
@@ -51,11 +41,7 @@ export default function CheckInPage() {
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
     const { error: statusError } = await supabase.from("daily_status").upsert({
-      athlete_id: profile.id,
-      date,
-      feeling,
-      available_minutes: minutes,
-      night_shift: nightShift,
+      athlete_id: profile.id, date, feeling, available_minutes: minutes, night_shift: nightShift,
     }, { onConflict: "athlete_id,date" });
 
     if (statusError) {
@@ -76,7 +62,6 @@ export default function CheckInPage() {
       return;
     }
 
-    // Load the current plan window and let the coach reschedule it.
     const { data: planRows, error: planLoadError } = await supabase
       .from("plan_days")
       .select("id,plan_date,title,workout_type,duration_minutes,priority,status")
@@ -88,45 +73,24 @@ export default function CheckInPage() {
 
     if (!planLoadError && planRows?.length) {
       const plan: PlannedWorkout[] = planRows.map(row => ({
-        id: row.id,
-        date: row.plan_date,
-        title: row.title,
-        type: row.workout_type,
-        durationMinutes: row.duration_minutes,
-        priority: row.priority,
-        status: row.status,
+        id: row.id, date: row.plan_date, title: row.title, type: row.workout_type,
+        durationMinutes: row.duration_minutes, priority: row.priority, status: row.status,
       }));
 
-      const adjusted = adjustPlan({
-        plan,
-        date,
-        feeling,
-        availableMinutes: minutes,
-        nightShift,
-      });
-
+      const adjusted = adjustPlan({ plan, date, feeling, availableMinutes: minutes, nightShift });
       const changed = adjusted.filter((item, index) => {
         const before = plan[index];
-        return before &&
-          (before.date !== item.date ||
-            before.title !== item.title ||
-            before.type !== item.type ||
-            before.durationMinutes !== item.durationMinutes ||
-            before.priority !== item.priority ||
-            before.status !== item.status);
+        return before && (
+          before.date !== item.date || before.title !== item.title || before.type !== item.type ||
+          before.durationMinutes !== item.durationMinutes || before.priority !== item.priority || before.status !== item.status
+        );
       });
 
       if (changed.length) {
         const { error } = await supabase.from("plan_days").upsert(
           changed.map(item => ({
-            id: item.id,
-            athlete_id: profile.id,
-            plan_date: item.date,
-            title: item.title,
-            workout_type: item.type,
-            duration_minutes: item.durationMinutes,
-            priority: item.priority,
-            status: item.status,
+            id: item.id, athlete_id: profile.id, plan_date: item.date, title: item.title,
+            workout_type: item.type, duration_minutes: item.durationMinutes, priority: item.priority, status: item.status,
           })),
           { onConflict: "athlete_id,plan_date" }
         );
@@ -135,16 +99,12 @@ export default function CheckInPage() {
       }
     }
 
-    if (decisionError) {
-      setMessage("Check-in zapisany, ale nie udało się zapisać decyzji coacha.");
-    } else if (planError) {
+    if (planError) {
       setMessage("Check-in i decyzja coacha zapisane, ale nie udało się skorygować planu.");
     } else if (planAdjusted) {
-      setMessage(
-        newDecision.decision === "REST"
-          ? "Check-in zapisany. Dzisiejszy trening został odwołany, a plan automatycznie przesunięty."
-          : "Check-in zapisany. Coach automatycznie skorygował plan."
-      );
+      setMessage(newDecision.decision === "REST"
+        ? "Check-in zapisany. Dzisiejszy trening został odwołany, a plan automatycznie przesunięty."
+        : "Check-in zapisany. Coach automatycznie skorygował plan.");
     } else {
       setMessage("Check-in i decyzja coacha zapisane. Plan nie wymagał zmiany.");
     }
@@ -160,17 +120,11 @@ export default function CheckInPage() {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {[
-            ["great", "Bardzo dobrze"],
-            ["good", "Dobrze"],
-            ["average", "Średnio"],
-            ["tired", "Zmęczony"],
-            ["wrecked", "Zajechany"],
+            ["great", "Bardzo dobrze"], ["good", "Dobrze"], ["average", "Średnio"],
+            ["tired", "Zmęczony"], ["wrecked", "Zajechany"],
           ].map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setFeeling(value as Feeling)}
-              className={`rounded-xl border p-3 ${feeling === value ? "border-white bg-white text-black" : "border-zinc-700"}`}
-            >
+            <button key={value} onClick={() => setFeeling(value as Feeling)}
+              className={`rounded-xl border p-3 ${feeling === value ? "border-white bg-white text-black" : "border-zinc-700"}`}>
               {label}
             </button>
           ))}
@@ -178,37 +132,28 @@ export default function CheckInPage() {
 
         <div>
           <label className="mb-2 block">Ile masz dziś czasu?</label>
-          <select
-            value={minutes}
-            onChange={e => setMinutes(Number(e.target.value))}
-            className="rounded-xl border border-zinc-700 bg-zinc-900 p-3"
-          >
-            {[0, 30, 45, 60, 90, 120, 180].map(x => (
-              <option key={x} value={x}>{x} min</option>
-            ))}
+          <select value={minutes} onChange={e => setMinutes(Number(e.target.value))}
+            className="rounded-xl border border-zinc-700 bg-zinc-900 p-3">
+            {[0, 30, 45, 60, 90, 120, 180].map(x => <option key={x} value={x}>{x} min</option>)}
           </select>
         </div>
 
         <label className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={nightShift}
-            onChange={e => setNightShift(e.target.checked)}
-          />
+          <input type="checkbox" checked={nightShift} onChange={e => setNightShift(e.target.checked)} />
           Jestem po / przed nocną zmianą
         </label>
 
-        {decision && <section className="rounded-2xl border border-zinc-700 p-5">
-          <p className="text-sm text-zinc-400">Wstępna decyzja coacha</p>
-          <h2 className="mt-2 text-2xl font-bold">{decision.decision}</h2>
-          <p className="mt-1">{decision.workoutType} · {decision.durationMinutes} min · {decision.intensity}</p>
-          <p className="mt-3 text-zinc-300">{decision.reasoning}</p>
-        </section>
+        {decision && (
+          <section className="rounded-2xl border border-zinc-700 p-5">
+            <p className="text-sm text-zinc-400">Wstępna decyzja coacha</p>
+            <h2 className="mt-2 text-2xl font-bold">{decision.decision}</h2>
+            <p className="mt-1">{decision.workoutType} · {decision.durationMinutes} min · {decision.intensity}</p>
+            <p className="mt-3 text-zinc-300">{decision.reasoning}</p>
+          </section>
+        )}
 
-        <button
-          onClick={saveCheckIn}
-          className="rounded-xl bg-white px-5 py-3 font-semibold text-black"
-        >
+        <button onClick={saveCheckIn} disabled={saving}
+          className="rounded-xl bg-white px-5 py-3 font-semibold text-black disabled:opacity-50">
           {saving ? "Zapisywanie..." : "Zapisz check-in"}
         </button>
 

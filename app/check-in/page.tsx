@@ -170,7 +170,7 @@ export default function CheckInPage() {
           ].map(([value, label]) => (
             <button
               key={value}
-              onClick={() => setFeeling(value)}
+              onClick={() => setFeeling(value as Feeling)}
               className={`rounded-xl border p-3 ${feeling === value ? "border-white bg-white text-black" : "border-zinc-700"}`}
             >
               {label}

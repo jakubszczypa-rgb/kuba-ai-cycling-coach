@@ -81,7 +81,7 @@ export async function GET() {
     nightShift,
     illness,
     load7d: analytics.load7d,
-    load28d: analytics.load28d,
+    load28d: analytics.load28d,\n    hardSessions7d: analytics.hardSessions7d,\n    sleepMinutes: healthResult.data?.[0]?.sleep_minutes,\n    sleepScore: healthResult.data?.[0]?.sleep_score,\n    restingHr: healthResult.data?.[0]?.resting_hr,\n    hrvStatus: healthResult.data?.[0]?.hrv_status,
   };
 
   const result = coachToday({ ...input, ftpW });

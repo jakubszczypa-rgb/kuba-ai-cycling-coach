@@ -68,6 +68,12 @@ export default function CheckInPage() {
     const decision = coachData?.decision;
     const decisionError = !coachResponse.ok || !decision;
 
+    if (decisionError) {
+      setMessage("Check-in zapisany, ale coach nie przeliczył decyzji.");
+      setSaving(false);
+      return;
+    }
+
     // Load the current plan window and let the coach reschedule it.
     const { data: planRows, error: planLoadError } = await supabase
       .from("plan_days")

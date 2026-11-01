@@ -150,7 +150,49 @@ export async function GET(request: Request) {
       if (upsertError) throw upsertError;
     }
 
-    return NextResponse.json({ ok: true, automatic: true, range: { startDate, endDate }, activities: activities?.length ?? 0 });
+    const sleepSummaries = await garmin.getDailySleepSummaries(startDate, endDate);
+    const healthRows = Array.isArray(sleepSummaries)
+      ? sleepSummaries
+      : ((sleepSummaries as Record<string, unknown> | null)?.sleepSummaries as unknown[] | undefined) ?? [];
+
+    let healthCount = 0;
+    for (const item of healthRows) {
+      const h = item as Record<string, unknown>;
+      const date = text(h.calendarDate ?? h.date);
+      if (!date) continue;
+
+      const sleepSeconds = num(h.sleepTimeSeconds ?? h.totalSleepSeconds);
+      const score = num(h.sleepScore ?? (h.sleepScoreOverall as Record<string, unknown> | null)?.value);
+      const restingHr = num(h.restingHeartRate ?? h.restingHr);
+      const hrv = num(h.avgHrv ?? h.averageHrv);
+      const hrvStatus = text(h.hrvStatus);
+      const stress = num(h.averageStressLevel ?? h.avgStress);
+      const bodyBattery = num(h.bodyBattery ?? h.bodyBatteryValue);
+
+      const { error: healthError } = await supabase.from("health_daily").upsert({
+        athlete_id: profileId,
+        date,
+        sleep_minutes: sleepSeconds !== null ? Math.round(sleepSeconds / 60) : null,
+        sleep_score: score,
+        resting_hr: restingHr !== null ? Math.round(restingHr) : null,
+        hrv_ms: hrv,
+        hrv_status: hrvStatus,
+        stress_avg: stress,
+        body_battery: bodyBattery,
+        raw_data: h
+      }, { onConflict: "athlete_id,date" });
+
+      if (healthError) throw healthError;
+      healthCount++;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      automatic: true,
+      range: { startDate, endDate },
+      activities: activities?.length ?? 0,
+      health: healthCount
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "GARMIN_CRON_SYNC_FAILED" }, { status: 500 });
   }

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { decideToday } from "@/lib/coach/decision";
+import { adjustPlan } from "@/lib/coach/plan-adjuster";
+import type { PlannedWorkout } from "@/lib/coach/plan-builder";
 
 export default function CheckInPage() {
   const [feeling, setFeeling] = useState("good");
@@ -18,6 +20,7 @@ export default function CheckInPage() {
     setMessage("");
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
+
     if (!user) {
       setMessage("Zaloguj się, aby zapisać check-in.");
       setSaving(false);
@@ -73,63 +76,77 @@ export default function CheckInPage() {
       input_snapshot: { feeling, availableMinutes: minutes, nightShift },
     });
 
-    // Check-in immediately modifies today's planned workout.
-    // We intentionally keep the adjustment date-local for now; true rescheduling
-    // with original_date tracking will be added in the next planning iteration.
-    const { data: todayPlan } = await supabase
+    // Load the current plan window and let the coach reschedule it.
+    const { data: planRows, error: planLoadError } = await supabase
       .from("plan_days")
-      .select("id,title,workout_type,duration_minutes,priority,status")
+      .select("id,plan_date,title,workout_type,duration_minutes,priority,status")
       .eq("athlete_id", profile.id)
-      .eq("plan_date", date)
-      .maybeSingle();
+      .order("plan_date");
 
+    let planError = !!planLoadError;
     let planAdjusted = false;
-    let planError = false;
 
-    if (todayPlan) {
-      const update =
-        decision.decision === "REST"
-          ? {
-              title: "Rest / regeneracja",
-              workout_type: "REST",
-              duration_minutes: 0,
-              priority: "RECOVERY",
-              status: "MOVED",
-            }
-          : decision.decision === "EASY"
-            ? {
-                title: "Easy Endurance",
-                workout_type: "ENDURANCE",
-                duration_minutes: Math.min(decision.durationMinutes, minutes),
-                priority: "RECOVERY",
-                status: "MOVED",
-              }
-            : {
-                duration_minutes: Math.min(todayPlan.duration_minutes, minutes),
-                status: "PLANNED",
-              };
+    if (!planLoadError && planRows?.length) {
+      const plan: PlannedWorkout[] = planRows.map(row => ({
+        id: row.id,
+        date: row.plan_date,
+        title: row.title,
+        type: row.workout_type,
+        durationMinutes: row.duration_minutes,
+        priority: row.priority,
+        status: row.status,
+      }));
 
-      const { error } = await supabase
-        .from("plan_days")
-        .update(update)
-        .eq("id", todayPlan.id);
+      const adjusted = adjustPlan({
+        plan,
+        date,
+        feeling: feeling as PlannedWorkout extends never ? never : "great" | "good" | "average" | "tired" | "wrecked",
+        availableMinutes: minutes,
+        nightShift,
+      });
 
-      planError = !!error;
-      planAdjusted = !error;
+      const changed = adjusted.filter((item, index) => {
+        const before = plan[index];
+        return before &&
+          (before.date !== item.date ||
+            before.title !== item.title ||
+            before.type !== item.type ||
+            before.durationMinutes !== item.durationMinutes ||
+            before.priority !== item.priority ||
+            before.status !== item.status);
+      });
+
+      if (changed.length) {
+        const { error } = await supabase.from("plan_days").upsert(
+          changed.map(item => ({
+            id: item.id,
+            athlete_id: profile.id,
+            plan_date: item.date,
+            title: item.title,
+            workout_type: item.type,
+            duration_minutes: item.durationMinutes,
+            priority: item.priority,
+            status: item.status,
+          })),
+          { onConflict: "athlete_id,plan_date" }
+        );
+        planError = !!error;
+        planAdjusted = !error;
+      }
     }
 
     if (decisionError) {
-      setMessage(
-        planError
-          ? "Check-in zapisany, ale decyzja i korekta planu nie zapisały się."
-          : "Check-in zapisany, ale nie udało się zapisać decyzji coacha."
-      );
+      setMessage("Check-in zapisany, ale nie udało się zapisać decyzji coacha.");
     } else if (planError) {
       setMessage("Check-in i decyzja coacha zapisane, ale nie udało się skorygować planu.");
     } else if (planAdjusted) {
-      setMessage("Check-in zapisany. Coach automatycznie skorygował dzisiejszy plan.");
+      setMessage(
+        decision.decision === "REST"
+          ? "Check-in zapisany. Dzisiejszy trening został odwołany, a plan automatycznie przesunięty."
+          : "Check-in zapisany. Coach automatycznie skorygował plan."
+      );
     } else {
-      setMessage("Check-in i decyzja coacha zapisane. Brak planu na dziś do korekty.");
+      setMessage("Check-in i decyzja coacha zapisane. Plan nie wymagał zmiany.");
     }
 
     setSaving(false);

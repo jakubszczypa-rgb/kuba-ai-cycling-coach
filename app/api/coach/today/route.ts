@@ -42,8 +42,8 @@ export async function GET() {
     supabase.from("daily_status")
       .select("feeling,available_minutes,night_shift,illness,work_shift,notes")
       .eq("athlete_id", profile.id).eq("date", date).maybeSingle(),
-    supabase.from("garmin_activities")
-      .select("activity_start,duration_sec,avg_power_w,normalized_power_w,avg_hr,tss,training_load")
+    supabase.from("strava_activities")
+      .select("activity_start,duration_sec,avg_power_w,weighted_power_w,avg_hr,suffer_score,sport")
       .eq("athlete_id", profile.id).gte("activity_start", since).order("activity_start"),
     supabase.from("health_daily")
       .select("date,sleep_minutes,sleep_score,resting_hr,hrv_ms,hrv_status,stress_avg,body_battery")
@@ -63,9 +63,9 @@ export async function GET() {
     date: a.activity_start,
     durationMinutes: (a.duration_sec ?? 0) / 60,
     avgPowerW: a.avg_power_w,
-    normalizedPowerW: a.normalized_power_w,
+    normalizedPowerW: a.weighted_power_w,
     avgHr: a.avg_hr,
-    tss: a.tss ?? a.training_load,
+    tss: a.suffer_score,
   }));
 
   const ftpW = profile.current_ftp_w ?? 238;

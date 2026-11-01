@@ -3,13 +3,17 @@ import type { PlannedWorkout } from "./plan-builder";
 type AdjustmentInput = {
   plan: PlannedWorkout[];
   date: string;
-  feeling: "great"|"good"|"average"|"tired"|"wrecked";
+  feeling: "great" | "good" | "average" | "tired" | "wrecked";
   availableMinutes: number;
   nightShift: boolean;
 };
 
+function sortPlan(plan: PlannedWorkout[]) {
+  return [...plan].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function adjustPlan({ plan, date, feeling, availableMinutes, nightShift }: AdjustmentInput): PlannedWorkout[] {
-  const next = plan.map(p => ({ ...p }));
+  const next = sortPlan(plan).map(p => ({ ...p }));
   const idx = next.findIndex(p => p.date === date);
   if (idx < 0) return next;
 
@@ -17,17 +21,50 @@ export function adjustPlan({ plan, date, feeling, availableMinutes, nightShift }
   const forceRest = nightShift || feeling === "wrecked" || availableMinutes <= 0;
 
   if (forceRest) {
-    next[idx] = { ...current, title: "Rest / regeneracja", type: "REST", durationMinutes: 0, priority: "RECOVERY", status: "MOVED" };
-    const moved = next.findIndex((p, i) => i > idx && p.status === "PLANNED" && p.type !== "REST");
-    if (moved >= 0) next[moved] = { ...next[moved], date, status: "MOVED" };
+    if (current.type === "REST") return next;
+
+    // Move today's workout to the next planned rest day.
+    const destinationIdx = next.findIndex(
+      (p, i) => i > idx && p.type === "REST" && p.status === "PLANNED"
+    );
+
+    next[idx] = {
+      ...current,
+      title: "Rest / regeneracja",
+      type: "REST",
+      durationMinutes: 0,
+      priority: "RECOVERY",
+      status: "MOVED",
+    };
+
+    if (destinationIdx >= 0) {
+      const destination = next[destinationIdx];
+      next[destinationIdx] = {
+        ...current,
+        date: destination.date,
+        status: "MOVED",
+      };
+    }
+
     return next;
   }
 
   if (feeling === "tired") {
-    next[idx] = { ...current, title: "Easy Endurance", type: "ENDURANCE", durationMinutes: Math.min(availableMinutes, 60), priority: "RECOVERY", status: "MOVED" };
+    next[idx] = {
+      ...current,
+      title: "Easy Endurance",
+      type: "ENDURANCE",
+      durationMinutes: Math.min(availableMinutes, 60),
+      priority: "RECOVERY",
+      status: "MOVED",
+    };
     return next;
   }
 
-  next[idx] = { ...current, durationMinutes: Math.min(current.durationMinutes, availableMinutes), status: "PLANNED" };
+  next[idx] = {
+    ...current,
+    durationMinutes: Math.min(current.durationMinutes, availableMinutes),
+    status: "PLANNED",
+  };
   return next;
 }

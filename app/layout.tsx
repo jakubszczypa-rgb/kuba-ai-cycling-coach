@@ -16,6 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link href="/" className="font-semibold">KUBA AI COACH</Link>
             <div className="flex gap-4 text-sm text-slate-400">
               <Link href="/check-in">Check-in</Link>
+              <Link href="/profile">Profil</Link>
               <Link href="/login">Logowanie</Link>
             </div>
           </div>

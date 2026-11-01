@@ -24,12 +24,21 @@ async function syncGarmin(profileId: string, supabase: ReturnType<typeof createS
   const garmin = getGarminClient();
   const now = new Date();
   const endDate = now.toISOString().slice(0, 10);
-  const startDate = getDateDaysAgo(28);
+  const startDate = getDateDaysAgo(180);
 
-  // Garmin activity search is more reliable when we request the latest activities first
-  // and apply the 28-day window locally. Health endpoints already support date ranges directly.
-  const activities = await garmin.searchActivities({ limit: 100, start: 0 });
+  // Pull pages from newest to oldest so the full 180-day history is imported.
   const startBoundary = new Date(`${startDate}T00:00:00.000Z`).getTime();
+  const activities: unknown[] = [];
+  const pageSize = 100;
+  for (let start = 0; start < 1000; start += pageSize) {
+    const page = await garmin.searchActivities({ limit: pageSize, start });
+    const rows = Array.isArray(page) ? page : [];
+    activities.push(...rows);
+    if (rows.length < pageSize) break;
+    const last = rows[rows.length - 1] as Record<string, unknown>;
+    const lastStart = dateTime(last.startTimeLocal ?? last.startTimeGMT ?? last.activityStartTime);
+    if (lastStart && new Date(lastStart).getTime() < startBoundary) break;
+  }
   let activityCount = 0;
 
   for (const activity of activities ?? []) {

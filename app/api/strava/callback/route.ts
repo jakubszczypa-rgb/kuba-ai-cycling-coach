@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     }),
   });
   const token = await tokenResponse.json();
-  if (!tokenResponse.ok) return NextResponse.redirect(new URL("/profile?strava=token_error", appUrl));
+  if (!tokenResponse.ok) {\n    const reason = typeof token?.message === "string" ? token.message : `HTTP_${tokenResponse.status}`;\n    return NextResponse.redirect(new URL(`/profile?strava=token_error&reason=${encodeURIComponent(reason.slice(0, 120))}`, appUrl));\n  }
 
   const { data: profile, error: profileError } = await supabase.from("athlete_profile").select("id").eq("user_id", user.id).maybeSingle();
   if (profileError || !profile) return NextResponse.redirect(new URL("/profile?strava=profile_error", appUrl));

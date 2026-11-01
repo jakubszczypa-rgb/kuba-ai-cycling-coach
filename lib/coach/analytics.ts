@@ -28,7 +28,7 @@ function loadFor(a: ActivitySample) {
   return a.tss ?? ((a.durationMinutes / 60) * 50);
 }
 
-export function analyzeTraining(activities: ActivitySample[]): TrainingAnalytics {
+export function analyzeTraining(activities: ActivitySample[], ftpW = 238): TrainingAnalytics {
   const cutoff7 = daysAgo(7);
   const cutoff28 = daysAgo(28);
   const recent = activities.filter(a => new Date(a.date) >= cutoff7);
@@ -55,7 +55,7 @@ export function analyzeTraining(activities: ActivitySample[]): TrainingAnalytics
   const load28d = month.reduce((s, a) => s + loadFor(a), 0);
   const hardSessions7d = recent.filter(a => {
     const tss = loadFor(a);
-    return tss >= 60 || (a.avgPowerW ?? 0) > 0 && (a.avgPowerW! >= 0.88 * 238);
+    return tss >= 60 || (a.avgPowerW ?? 0) > 0 && (a.avgPowerW! >= 0.88 * ftpW);
   }).length;
 
   return {

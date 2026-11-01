@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { decideToday } from "@/lib/coach/decision";
 
 export default function CheckInPage() {
   const [feeling, setFeeling] = useState("good");
   const [minutes, setMinutes] = useState(60);
   const [nightShift, setNightShift] = useState(false);
   const [message, setMessage] = useState("");
+
+  const decision = decideToday({ feeling, availableMinutes: minutes, nightShift });
 
   async function saveCheckIn() {
     const supabase = createClient();
@@ -48,6 +51,13 @@ export default function CheckInPage() {
           <input type="checkbox" checked={nightShift} onChange={e => setNightShift(e.target.checked)} />
           Jestem po / przed nocną zmianą
         </label>
+        <section className="rounded-2xl border border-zinc-700 p-5">
+          <p className="text-sm text-zinc-400">Wstępna decyzja coacha</p>
+          <h2 className="mt-2 text-2xl font-bold">{decision.decision}</h2>
+          <p className="mt-1">{decision.workoutType} · {decision.durationMinutes} min · {decision.intensity}</p>
+          <p className="mt-3 text-zinc-300">{decision.reasoning}</p>
+        </section>
+
         <button onClick={saveCheckIn} className="rounded-xl bg-white px-5 py-3 font-semibold text-black">
           Zapisz check-in
         </button>

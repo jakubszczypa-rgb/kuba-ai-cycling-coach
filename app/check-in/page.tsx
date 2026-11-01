@@ -9,19 +9,60 @@ export default function CheckInPage() {
   const [minutes, setMinutes] = useState(60);
   const [nightShift, setNightShift] = useState(false);
   const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const decision = decideToday({ feeling, availableMinutes: minutes, nightShift });
 
   async function saveCheckIn() {
+    setSaving(true);
     const supabase = createClient();
-    const { error } = await supabase.from("daily_status").insert({
-      date: new Date().toISOString().slice(0, 10),
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setMessage("Zaloguj się, aby zapisać check-in.");
+      setSaving(false);
+      return;
+    }
+
+    let { data: profile } = await supabase.from("athlete_profile").select("id").eq("user_id", user.id).maybeSingle();
+    if (!profile) {
+      const created = await supabase.from("athlete_profile").insert({ user_id: user.id, name: "Kuba" }).select("id").single();
+      if (created.error) {
+        setMessage("Nie udało się utworzyć profilu zawodnika.");
+        setSaving(false);
+        return;
+      }
+      profile = created.data;
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    const { error: statusError } = await supabase.from("daily_status").upsert({
+      athlete_id: profile.id,
+      date,
       feeling,
       available_minutes: minutes,
       night_shift: nightShift,
+    }, { onConflict: "athlete_id,date" });
+
+    if (statusError) {
+      setMessage("Nie udało się zapisać check-inu.");
+      setSaving(false);
+      return;
+    }
+
+    const { error: decisionError } = await supabase.from("coach_decisions").insert({
+      athlete_id: profile.id,
+      decision_date: date,
+      decision: decision.decision,
+      intensity: decision.intensity,
+      duration_minutes: decision.durationMinutes,
+      workout_type: decision.workoutType,
+      confidence: decision.confidence,
+      reasoning: decision.reasoning,
+      input_snapshot: { feeling, availableMinutes: minutes, nightShift },
     });
 
-    setMessage(error ? "Nie udało się zapisać check-inu." : "Check-in zapisany.");
+    setMessage(decisionError ? "Check-in zapisany, ale nie udało się zapisać decyzji coacha." : "Check-in i decyzja coacha zapisane.");
+    setSaving(false);
   }
 
   return (
@@ -59,7 +100,7 @@ export default function CheckInPage() {
         </section>
 
         <button onClick={saveCheckIn} className="rounded-xl bg-white px-5 py-3 font-semibold text-black">
-          Zapisz check-in
+          {saving ? "Zapisywanie..." : "Zapisz check-in"}
         </button>
         {message && <p className="text-zinc-300">{message}</p>}
       </div>

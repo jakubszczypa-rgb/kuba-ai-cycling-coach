@@ -49,7 +49,7 @@ export default function AnalysisPage() {
       </div>
       <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
         <h2 className="text-xl font-semibold">Trend</h2>
-        <p className="mt-2 text-slate-300">{result.trend === "INSUFFICIENT_DATA" ? "Potrzebujemy danych z Garmina, żeby ocenić progres." : result.trend}</p>
+        <p className="mt-2 text-slate-300">{result.efficiencyTrend === "INSUFFICIENT_DATA" ? "Potrzebujemy danych z Garmina, żeby ocenić progres." : result.efficiencyTrend}</p>
       </section>
     </div>
   </main>;

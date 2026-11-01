@@ -11,11 +11,14 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+
   if (!user) return NextResponse.redirect(new URL("/login", appUrl));
   if (error || !code || !state) return NextResponse.redirect(new URL("/profile?strava=error", appUrl));
 
   const cookieState = request.headers.get("cookie")?.match(/(?:^|; )strava_oauth_state=([^;]*)/)?.[1];
-  if (!cookieState || cookieState !== state) return NextResponse.redirect(new URL("/profile?strava=state_error", appUrl));
+  if (!cookieState || cookieState !== state) {
+    return NextResponse.redirect(new URL("/profile?strava=state_error", appUrl));
+  }
 
   const tokenResponse = await fetch("https://www.strava.com/oauth/token", {
     method: "POST",
@@ -28,11 +31,25 @@ export async function GET(request: Request) {
       redirect_uri: stravaRedirectUri(),
     }),
   });
-  const token = await tokenResponse.json();
-  if (!tokenResponse.ok) {\n    const reason = typeof token?.message === "string" ? token.message : `HTTP_${tokenResponse.status}`;\n    return NextResponse.redirect(new URL(`/profile?strava=token_error&reason=${encodeURIComponent(reason.slice(0, 120))}`, appUrl));\n  }
 
-  const { data: profile, error: profileError } = await supabase.from("athlete_profile").select("id").eq("user_id", user.id).maybeSingle();
-  if (profileError || !profile) return NextResponse.redirect(new URL("/profile?strava=profile_error", appUrl));
+  const token = await tokenResponse.json();
+
+  if (!tokenResponse.ok) {
+    const reason = typeof token?.message === "string" ? token.message : `HTTP_${tokenResponse.status}`;
+    return NextResponse.redirect(
+      new URL(`/profile?strava=token_error&reason=${encodeURIComponent(reason.slice(0, 120))}`, appUrl)
+    );
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("athlete_profile")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return NextResponse.redirect(new URL("/profile?strava=profile_error", appUrl));
+  }
 
   const service = createServiceClient();
   const { error: saveError } = await service.from("strava_connections").upsert({
@@ -48,6 +65,12 @@ export async function GET(request: Request) {
   if (saveError) return NextResponse.redirect(new URL("/profile?strava=save_error", appUrl));
 
   const response = NextResponse.redirect(new URL("/profile?strava=connected", appUrl));
-  response.cookies.set("strava_oauth_state", "", { httpOnly: true, secure: true, sameSite: "lax", maxAge: 0, path: "/" });
+  response.cookies.set("strava_oauth_state", "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 0,
+    path: "/",
+  });
   return response;
 }

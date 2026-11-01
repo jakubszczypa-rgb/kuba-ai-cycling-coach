@@ -21,6 +21,9 @@ export default function ProfilePage() {
   const [message, setMessage] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaSyncing, setStravaSyncing] = useState(false);
+  const [stravaMessage, setStravaMessage] = useState("");
 
   async function loadProfile() {
     const supabase = createClient();
@@ -46,6 +49,15 @@ export default function ProfilePage() {
         .eq("athlete_id", p.id).order("decision_date", { ascending: false }).limit(10);
       setDecisions(d ?? []);
     }
+
+    try {
+      const status = await fetch("/api/strava/status");
+      if (status.ok) {
+        const data = await status.json();
+        setStravaConnected(Boolean(data.connected));
+      }
+    } catch {}
+
     setLoading(false);
   }
 
@@ -66,6 +78,24 @@ export default function ProfilePage() {
       setSyncMessage("Nie udało się połączyć z usługą synchronizacji Garmin.");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function syncStrava() {
+    setStravaSyncing(true);
+    setStravaMessage("");
+    try {
+      const response = await fetch("/api/strava/sync", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setStravaMessage(data?.error || "Synchronizacja Strava nie powiodła się.");
+        return;
+      }
+      setStravaMessage(`Strava: ${data.activities ?? 0} jazd zapisanych z ${data.fetched ?? 0} pobranych aktywności.`);
+    } catch {
+      setStravaMessage("Nie udało się połączyć z usługą synchronizacji Strava.");
+    } finally {
+      setStravaSyncing(false);
     }
   }
 
@@ -123,6 +153,32 @@ export default function ProfilePage() {
             {message && <span className="text-sm text-slate-400">{message}</span>}
           </div>
           {syncMessage && <p className="mt-3 text-sm text-cyan-300">{syncMessage}</p>}
+        </section>
+
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-orange-400">STRAVA</p>
+              <h2 className="mt-2 text-xl font-semibold">Pełna historia treningów</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Strava będzie źródłem historii jazdy z ostatnich 180 dni, a Garmin zostaje źródłem danych regeneracji.
+              </p>
+            </div>
+            {stravaConnected ? (
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">✓ Strava połączona</span>
+                <button onClick={syncStrava} disabled={stravaSyncing} className="rounded-xl border border-orange-400 bg-orange-400/10 px-4 py-3 font-semibold text-orange-200 disabled:opacity-50">
+                  {stravaSyncing ? "Synchronizuję..." : "Pobierz 180 dni"}
+                </button>
+              </div>
+            ) : (
+              <a href="/api/strava/connect" className="rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white hover:bg-orange-400">
+                Połącz ze Strava
+              </a>
+            )}
+          </div>
+          {stravaMessage && <p className="mt-4 text-sm text-orange-300">{stravaMessage}</p>}
+          {!stravaConnected && <p className="mt-4 text-xs text-slate-500">Połączenie jest tylko do odczytu. Trener nie będzie publikował ani zmieniał aktywności na Strava.</p>}
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

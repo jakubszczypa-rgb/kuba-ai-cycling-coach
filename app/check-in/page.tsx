@@ -13,6 +13,7 @@ export default function CheckInPage() {
   const [nightShift, setNightShift] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [decision, setDecision] = useState<any>(null);
 
   async function saveCheckIn() {
     setSaving(true);
@@ -65,8 +66,9 @@ export default function CheckInPage() {
 
     const coachResponse = await fetch("/api/coach/today", { cache: "no-store" });
     const coachData = await coachResponse.json();
-    const decision = coachData?.decision;
-    const decisionError = !coachResponse.ok || !decision;
+    const newDecision = coachData?.decision;
+    const decisionError = !coachResponse.ok || !newDecision;
+    if (newDecision) setDecision(newDecision);
 
     if (decisionError) {
       setMessage("Check-in zapisany, ale coach nie przeliczył decyzji.");
@@ -139,7 +141,7 @@ export default function CheckInPage() {
       setMessage("Check-in i decyzja coacha zapisane, ale nie udało się skorygować planu.");
     } else if (planAdjusted) {
       setMessage(
-        decision.decision === "REST"
+        newDecision.decision === "REST"
           ? "Check-in zapisany. Dzisiejszy trening został odwołany, a plan automatycznie przesunięty."
           : "Check-in zapisany. Coach automatycznie skorygował plan."
       );
@@ -196,7 +198,7 @@ export default function CheckInPage() {
           Jestem po / przed nocną zmianą
         </label>
 
-        <section className="rounded-2xl border border-zinc-700 p-5">
+        {decision && <section className="rounded-2xl border border-zinc-700 p-5">
           <p className="text-sm text-zinc-400">Wstępna decyzja coacha</p>
           <h2 className="mt-2 text-2xl font-bold">{decision.decision}</h2>
           <p className="mt-1">{decision.workoutType} · {decision.durationMinutes} min · {decision.intensity}</p>

@@ -238,11 +238,22 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
       cadenceRpm: mean(chunk.flatMap(s => s.cadenceRpm === null ? [] : [s.cadenceRpm])),
     });
   }
-  // Quality describes the signals actually recorded. Missing optional power on an outdoor ride is not a data defect.\n  const signalCoverages = [powerCoverage, hrCoverage, cadenceCoverage, speedCoverage, temperatureCoverage, gradeCoverage].filter(v => v > 0);\n  const qualityScore = signalCoverages.length ? Math.round(signalCoverages.reduce((a, b) => a + b, 0) / signalCoverages.length * 100) : 0;\n  const pctOrNull = (v: number) => v > 0 ? Math.round(v * 100) : null;\n  const availableSignals = [\n    powerCoverage > 0 ? "power" : null, hrCoverage > 0 ? "heartRate" : null,\n    cadenceCoverage > 0 ? "cadence" : null, speedCoverage > 0 ? "speed" : null,\n    temperatureCoverage > 0 ? "temperature" : null, gradeCoverage > 0 ? "grade" : null,\n  ].filter((v): v is string => v !== null);
+  // Quality describes the signals actually recorded. Missing optional power on an outdoor ride is not a data defect.
+  const signalCoverages = [powerCoverage, hrCoverage, cadenceCoverage, speedCoverage, temperatureCoverage, gradeCoverage].filter(v => v > 0);
+  const qualityScore = signalCoverages.length ? Math.round(signalCoverages.reduce((a, b) => a + b, 0) / signalCoverages.length * 100) : 0;
+  const pctOrNull = (v: number) => v > 0 ? Math.round(v * 100) : null;
+  const availableSignals = [
+    powerCoverage > 0 ? "power" : null, hrCoverage > 0 ? "heartRate" : null,
+    cadenceCoverage > 0 ? "cadence" : null, speedCoverage > 0 ? "speed" : null,
+    temperatureCoverage > 0 ? "temperature" : null, gradeCoverage > 0 ? "grade" : null,
+  ].filter((v): v is string => v !== null);
   return {
     sampleCount: samples.length,
     durationSec: samples.length ? samples[samples.length - 1].t - samples[0].t + 1 : 0,
-    coverage: { power: Math.round(powerCoverage * 100), heartRate: Math.round(hrCoverage * 100), paired: Math.round(pairedCoverage * 100), cadence: Math.round(cadenceCoverage * 100), speed: Math.round(speedCoverage * 100), temperature: Math.round(temperatureCoverage * 100), grade: Math.round(gradeCoverage * 100) },\n    signalQuality: { power: pctOrNull(powerCoverage), heartRate: pctOrNull(hrCoverage), cadence: pctOrNull(cadenceCoverage), speed: pctOrNull(speedCoverage), temperature: pctOrNull(temperatureCoverage), grade: pctOrNull(gradeCoverage) },\n    availableSignals,\n    dataQuality: { score: qualityScore, flags, timebase: rawTime.length ? "time_stream" : "index_fallback" },
+    coverage: { power: Math.round(powerCoverage * 100), heartRate: Math.round(hrCoverage * 100), paired: Math.round(pairedCoverage * 100), cadence: Math.round(cadenceCoverage * 100), speed: Math.round(speedCoverage * 100), temperature: Math.round(temperatureCoverage * 100), grade: Math.round(gradeCoverage * 100) },
+    signalQuality: { power: pctOrNull(powerCoverage), heartRate: pctOrNull(hrCoverage), cadence: pctOrNull(cadenceCoverage), speed: pctOrNull(speedCoverage), temperature: pctOrNull(temperatureCoverage), grade: pctOrNull(gradeCoverage) },
+    availableSignals,
+    dataQuality: { score: qualityScore, flags, timebase: rawTime.length ? "time_stream" : "index_fallback" },
     avgPowerW: mean(powerValues) === null ? null : Math.round(mean(powerValues)!),
     avgHr: mean(hrValues) === null ? null : Math.round(mean(hrValues)!),
     maxHr: maximum(hrValues) === null ? null : Math.round(maximum(hrValues)!),

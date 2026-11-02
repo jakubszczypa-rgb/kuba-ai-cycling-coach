@@ -103,9 +103,11 @@ export default function CheckInPage() {
     if (planError) {
       setMessage("Check-in i decyzja coacha zapisane, ale nie udało się skorygować planu.");
     } else if (planAdjusted) {
-      setMessage(newDecision.decision === "REST"
-        ? "Check-in zapisany. Dzisiejszy trening został odwołany, a plan automatycznie przesunięty."
-        : "Check-in zapisany. Coach automatycznie skorygował plan.");
+      setMessage(illness || feeling === "wrecked"
+        ? "Check-in zapisany. Dzisiejszy trening został anulowany — priorytetem jest regeneracja."
+        : newDecision.decision === "REST"
+          ? "Check-in zapisany. Dzisiejszy trening został odwołany, a plan skorygowany."
+          : "Check-in zapisany. Coach automatycznie skorygował plan.");
     } else {
       setMessage("Check-in i decyzja coacha zapisane. Plan nie wymagał zmiany.");
     }

@@ -8,13 +8,18 @@ export type StreamMetrics = {
   avgHr: number | null;
   maxHr: number | null;
   maxPowerW: number | null;
+  avgCadence: number | null;
+  avgSpeedMps: number | null;
+  maxSpeedMps: number | null;
+  avgTempC: number | null;
+  avgGradePct: number | null;
   powerHrEfficiency: number | null;
   aerobicDecouplingPct: number | null;
   aerobicSamples: number;
   timeInPowerZonesSec: Record<string, number>;
   intervals: Array<{
     startSec: number; endSec: number; durationSec: number;
-    avgPowerW: number; avgHr: number | null; maxHr: number | null;
+    avgPowerW: number; avgCadence: number | null; avgHr: number | null; maxHr: number | null;
     recoveryHrDropBpm: number | null;
   }>;
 };
@@ -29,6 +34,10 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
   const time = nums(streams, "time");
   const watts = nums(streams, "watts");
   const hr = nums(streams, "heartrate");
+  const cadence = nums(streams, "cadence");
+  const speed = nums(streams, "velocity_smooth");
+  const temperature = nums(streams, "temp");
+  const grade = nums(streams, "grade_smooth");
   const n = Math.max(time.length, watts.length, hr.length);
   const pairs: Array<{ t: number; w: number; h: number }> = [];
   for (let i = 0; i < n; i++) {
@@ -132,6 +141,11 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
     avgHr: avg(hrValues) === null ? null : Math.round(avg(hrValues)!),
     maxHr: max(hrValues) === null ? null : Math.round(max(hrValues)!),
     maxPowerW: max(powerValues),
+    avgCadence: avg(cadence.filter((v): v is number => v !== null)),
+    avgSpeedMps: avg(speed.filter((v): v is number => v !== null)),
+    maxSpeedMps: max(speed.filter((v): v is number => v !== null)),
+    avgTempC: avg(temperature.filter((v): v is number => v !== null)),
+    avgGradePct: avg(grade.filter((v): v is number => v !== null)),
     powerHrEfficiency: avg(pairs.map(p => p.w)) && avg(pairs.map(p => p.h))
       ? Math.round((avg(pairs.map(p => p.w))! / avg(pairs.map(p => p.h))!) * 100) / 100 : null,
     aerobicDecouplingPct,

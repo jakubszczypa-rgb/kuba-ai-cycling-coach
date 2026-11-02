@@ -103,7 +103,15 @@ export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
     if (data.length === 0) break;
   }
 
+  const { data: existingStreams, error: existingStreamsError } = await supabase
+    .from("strava_activity_streams").select("strava_activity_id,sample_count").eq("athlete_id", athleteId);
+  if (existingStreamsError) throw new Error(existingStreamsError.message);
+  const streamIds = new Set((existingStreams ?? []).filter(x => Number(x.sample_count) > 0).map(x => Number(x.strava_activity_id)));
+
   let saved = 0;
+  let streamsSaved = 0;
+  let streamsSkipped = 0;
+  let streamsFailed = 0;
   for (const a of activities) {
     const type = String(a.type ?? a.sport_type ?? "");
     if (!["Ride","VirtualRide","GravelRide","MountainBikeRide","EBikeRide","EMountainBikeRide"].includes(type)) continue;
@@ -132,7 +140,32 @@ export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
     const { error } = await supabase.from("strava_activities").upsert(row, { onConflict: "strava_activity_id" });
     if (error) throw new Error(`Activity ${a.id}: ${error.message}`);
     saved++;
+
+    const activityId = Number(a.id);
+    if (streamIds.has(activityId)) { streamsSkipped++; continue; }
+    try {
+      const streams = await fetchActivityStreams(accessToken, activityId);
+      if (!streams || !Array.isArray(streams.time?.data)) { streamsSkipped++; continue; }
+      const metrics = analyzeStravaStreams(streams, ftpW > 0 ? ftpW : 238);
+      const streamTypes = Object.keys(streams).filter(key => Array.isArray(streams[key]?.data));
+      const { error: streamError } = await supabase.from("strava_activity_streams").upsert({
+        athlete_id: athleteId,
+        strava_activity_id: activityId,
+        activity_start: start,
+        duration_sec: Number(a.elapsed_time) || metrics.durationSec,
+        streams,
+        metrics,
+        stream_types: streamTypes,
+        sample_count: metrics.sampleCount,
+        fetched_at: new Date().toISOString(),
+      }, { onConflict: "strava_activity_id" });
+      if (streamError) throw new Error(streamError.message);
+      streamsSaved++;
+    } catch (error) {
+      if (error instanceof Error && error.message === "STRAVA_RATE_LIMITED_STREAMS") throw error;
+      streamsFailed++;
+    }
   }
 
-  return { activities: saved, fetched: activities.length, days };
+  return { activities: saved, fetched: activities.length, days, streamsSaved, streamsSkipped, streamsFailed };
 }

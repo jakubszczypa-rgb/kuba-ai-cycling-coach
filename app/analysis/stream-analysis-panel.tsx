@@ -11,7 +11,10 @@ export default function StreamAnalysisPanel() {
   const [selected, setSelected] = useState("");
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Ładowanie zapisanych strumieni...");\n  const [aiLoading, setAiLoading] = useState(false);\n  const [aiAnalysis, setAiAnalysis] = useState("");\n  const [aiError, setAiError] = useState("");
+  const [message, setMessage] = useState("Ładowanie zapisanych strumieni...");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [aiError, setAiError] = useState("");
 
   useEffect(() => {
     async function load() {

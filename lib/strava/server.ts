@@ -187,3 +187,52 @@ export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
 
   return { activities: saved, fetched: activities.length, days, streamsSaved, streamsSkipped, streamsFailed };
 }
+
+export async function reprocessStravaStreams(athleteId: string, limit = 100) {
+  const supabase = createServiceClient();
+  const [{ data: rows, error: rowsError }, { data: history, error: historyError }, { data: activities, error: activitiesError }] = await Promise.all([
+    supabase.from("strava_activity_streams")
+      .select("strava_activity_id,activity_start,streams")
+      .eq("athlete_id", athleteId).order("activity_start", { ascending: true }).limit(limit),
+    supabase.from("athlete_ftp_history").select("ftp_w,valid_from_date")
+      .eq("athlete_id", athleteId).order("valid_from_date", { ascending: true }),
+    supabase.from("strava_activities").select("strava_activity_id,indoor")
+      .eq("athlete_id", athleteId),
+  ]);
+  if (rowsError) throw new Error(rowsError.message);
+  if (historyError) throw new Error(historyError.message);
+  if (activitiesError) throw new Error(activitiesError.message);
+  const ftpRows = history ?? [];
+  const indoorById = new Map((activities ?? []).map(a => [Number(a.strava_activity_id), Boolean(a.indoor)]));
+  let updated = 0, failed = 0, missingFtpHistory = 0;
+  for (const row of rows ?? []) {
+    try {
+      const date = row.activity_start ? String(row.activity_start).slice(0, 10) : "";
+      const ftp = [...ftpRows].reverse().find(item => String(item.valid_from_date) <= date);
+      const effectiveFtp = ftp ? Number(ftp.ftp_w) : 238;
+      const result = analyzeStravaStreams(row.streams as StravaStreams, effectiveFtp);
+      const hasHistoricalFtp = Boolean(ftp);
+      const metrics = {
+        ...result,
+        ftpW: effectiveFtp,
+        ftpSource: hasHistoricalFtp ? "athlete_ftp_history" : "fallback_unverified",
+        indoor: indoorById.get(Number(row.strava_activity_id)) ?? null,
+        dataQuality: {
+          ...result.dataQuality,
+          flags: hasHistoricalFtp ? result.dataQuality.flags : [...result.dataQuality.flags, "FTP_HISTORY_MISSING"],
+        },
+        algorithmVersion: 2,
+        recalculatedAt: new Date().toISOString(),
+      };
+      if (!hasHistoricalFtp) missingFtpHistory++;
+      const { error } = await supabase.from("strava_activity_streams")
+        .update({ metrics, sample_count: result.sampleCount, fetched_at: new Date().toISOString() })
+        .eq("athlete_id", athleteId).eq("strava_activity_id", row.strava_activity_id);
+      if (error) throw new Error(error.message);
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+  return { processed: (rows ?? []).length, updated, failed, missingFtpHistory, hasMore: (rows ?? []).length === limit };
+}

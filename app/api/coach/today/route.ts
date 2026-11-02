@@ -38,7 +38,7 @@ export async function GET() {
     return NextResponse.json({ error: "PROFILE_NOT_FOUND" }, { status: 404 });
   }
 
-  const [statusResult, activityResult, healthResult, planResult] = await Promise.all([
+  const [statusResult, activityResult, healthResult, planResult, streamResult] = await Promise.all([
     supabase.from("daily_status")
       .select("feeling,available_minutes,night_shift,illness,work_shift,notes")
       .eq("athlete_id", profile.id).eq("date", date).maybeSingle(),
@@ -89,7 +89,21 @@ export async function GET() {
   };
 
   const result = coachToday({ ...input, ftpW });
-  const brief = buildAthleteBrief({
+  const streamMetrics = (streamResult.data ?? []).map(row => row.metrics as Record<string, any>);
+  const validDecoupling = streamMetrics.map(m => Number(m.aerobicDecouplingPct)).filter(Number.isFinite);
+  const intervals = streamMetrics.flatMap(m => Array.isArray(m.intervals) ? m.intervals : []);
+  const recoveryDrops = intervals.map((x: any) => Number(x.recoveryHrDropBpm)).filter(Number.isFinite);
+  const streamAnalysis = {
+    analyzedActivities: streamMetrics.length,
+    sampleCount: (streamResult.data ?? []).reduce((sum, row) => sum + Number(row.sample_count ?? 0), 0),
+    averageAerobicDecouplingPct: validDecoupling.length ? Math.round(validDecoupling.reduce((a,b)=>a+b,0) / validDecoupling.length * 10) / 10 : null,
+    aerobicDecouplingSessions: validDecoupling.length,
+    detectedIntervals: intervals.length,
+    averageIntervalRecoveryHrDropBpm: recoveryDrops.length ? Math.round(recoveryDrops.reduce((a,b)=>a+b,0) / recoveryDrops.length) : null,
+    note: "Wyniki wyliczone z sekundowych strumieni mocy i tętna Stravy. Decoupling liczony wyłącznie z dostatecznie długich fragmentów 55-78% FTP; brak wyniku oznacza brak wystarczających danych.",
+  };
+  const brief = {
+    ...buildAthleteBrief({
     goal: profile.primary_goal,
     ftpW,
     vo2max: profile.vo2max,

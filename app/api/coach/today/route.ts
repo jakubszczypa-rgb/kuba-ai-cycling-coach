@@ -62,8 +62,10 @@ export async function GET() {
       .order("activity_start", { ascending: false }).limit(30),
   ]);
 
-  const requiredErrors = [statusResult.error, garminActivityResult.error, stravaActivityResult.error, healthResult.error, planResult.error, garminStreamResult.error, stravaStreamResult.error].filter(Boolean);
-  if (requiredErrors.length === 7) return NextResponse.json({ error: requiredErrors[0]?.message ?? "DATA_LOAD_FAILED" }, { status: 500 });
+  const fatalError = statusResult.error ?? healthResult.error ?? planResult.error
+    ?? (garminActivityResult.error && stravaActivityResult.error ? garminActivityResult.error : null)
+    ?? (garminStreamResult.error && stravaStreamResult.error ? garminStreamResult.error : null);
+  if (fatalError) return NextResponse.json({ error: fatalError.message }, { status: 500 });
 
   const status = statusResult.data;
   const garminActivities = garminActivityResult.data ?? [];

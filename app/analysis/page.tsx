@@ -46,11 +46,11 @@ export default function AnalysisPage() {
         source: "Garmin" as const, name: null,
       }));
 
-      // Strava is the main training history. Add Garmin-only activities so Garmin data is not lost.
-      const merged = [...strava];
-      for (const g of garmin) {
-        const duplicate = strava.some(s => Math.abs(new Date(s.date).getTime() - new Date(g.date).getTime()) < 10 * 60 * 1000);
-        if (!duplicate) merged.push(g);
+      // Garmin FIT is authoritative. Strava only fills gaps where Garmin has no matching activity.
+      const merged = [...garmin];
+      for (const s of strava) {
+        const duplicate = garmin.some(g => Math.abs(new Date(g.date).getTime() - new Date(s.date).getTime()) < 10 * 60 * 1000);
+        if (!duplicate) merged.push(s);
       }
       merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setActivities(merged);
@@ -99,7 +99,7 @@ export default function AnalysisPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Metric label="Forma" value={result.trainingStatus === "BUILDING" ? "Rośnie ↗" : result.trainingStatus === "FATIGUED" ? "Zmęczenie ↓" : result.trainingStatus === "STABLE" ? "Stabilna →" : "Mało danych"} />
         <Metric label="Form Score" value={result.formScore !== null ? `${result.formScore}/100` : "—"} />
-        <Metric label="Load 7d" value={String(result.load7d)} />
+        <Metric label={result.loadEstimated ? "Load 7d · szacunek" : "Load 7d · TSS"} value={String(result.load7d)} />
         <Metric label="Godziny 7d" value={`${result.hours7d} h`} />
         <Metric label="Mocne 7d" value={String(result.hardSessions7d)} />
       </div>
@@ -108,9 +108,11 @@ export default function AnalysisPage() {
         <ChartCard title="Tygodniowy czas treningu" subtitle="Godziny z ostatnich 12 tygodni">
           <Bars data={weekly.slice(-12).map(x => ({ label: x.label, value: x.hours }))} suffix=" h" />
         </ChartCard>
-        <ChartCard title="Średnia moc i tętno" subtitle="Dwa osobne słupki na tydzień; wartości opisane po najechaniu">
-          <div className="mb-3 flex gap-4 text-xs text-slate-400"><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-cyan-500"/> Moc (W)</span><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-amber-500"/> Tętno (bpm)</span></div>
-          <DualBars data={weekly.slice(-12).map(x => ({ label: x.label, a: x.avgPower, b: x.avgHr }))} />
+        <ChartCard title="Średnia moc — tylko sesje z pomiarem" subtitle="Wartości z treningów, w których zapisano moc">
+          <Bars data={weekly.slice(-12).filter(x => x.avgPower > 0).map(x => ({ label: x.label, value: x.avgPower }))} suffix=" W" />
+        </ChartCard>
+        <ChartCard title="Średnie tętno — sesje z HR" subtitle="Tętno z jazd outdoor i indoor; bez mieszania ze skalą mocy">
+          <Bars data={weekly.slice(-12).filter(x => x.avgHr > 0).map(x => ({ label: x.label, value: x.avgHr }))} suffix=" bpm" />
         </ChartCard>
       </section>
 
@@ -134,7 +136,8 @@ export default function AnalysisPage() {
 
       <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
         <h2 className="text-xl font-semibold">Efektywność Power / HR</h2>
-        <p className="mt-2 text-slate-300">{result.efficiencyTrend === "INSUFFICIENT_DATA" ? "Za mało porównywalnych treningów." : result.efficiencyTrend === "IMPROVING" ? "Trend jest poprawiający się — przy podobnym tętnie uzyskujesz więcej mocy." : result.efficiencyTrend === "DECLINING" ? "Trend spada — trzeba patrzeć na regenerację, obciążenie i jakość treningów." : "Trend jest stabilny."}</p>
+        <p className="mt-2 text-slate-300">{result.efficiencyTrend === "INSUFFICIENT_DATA" ? "Za mało porównywalnych sesji z jednoczesnym zapisem mocy i tętna. Jazdy outdoor bez miernika mocy nie są tu używane." : result.efficiencyTrend === "IMPROVING" ? "Trend rośnie — przy porównywalnych sesjach uzyskujesz więcej mocy względem tętna." : result.efficiencyTrend === "DECLINING" ? "Trend spada — sprawdź regenerację, obciążenie i porównywalność warunków." : "Trend jest stabilny."}
+        <span className="mt-2 block text-sm text-slate-500">Sesje z jednoczesnym pomiarem mocy i HR w ostatnich 7 dniach: {result.powerHrSessions7d}.</span></p>
       </section>
 
       <StreamAnalysisPanel />
@@ -179,23 +182,31 @@ function buildNarrative(rows: ActivityRow[], health: HealthRow[], ftp: number) {
   const recent = rows.filter(r => now - new Date(r.date).getTime() <= 90*86400000);
   const previous = rows.filter(r => now - new Date(r.date).getTime() > 90*86400000 && now - new Date(r.date).getTime() <= 180*86400000);
   const avg = (xs: number[]) => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : null;
-  const rp = avg(recent.map(x=>Number(x.avgPowerW)).filter(Number.isFinite));
-  const pp = avg(previous.map(x=>Number(x.avgPowerW)).filter(Number.isFinite));
-  const rh = avg(recent.map(x=>Number(x.avgHr)).filter(Number.isFinite));
-  const ph = avg(previous.map(x=>Number(x.avgHr)).filter(Number.isFinite));
-  const sleepRecent = health.slice(0,7).map(x=>x.sleepMinutes).filter(x=>x>0);
-  const sleepAvg = avg(sleepRecent);
-  const powerChange = rp && pp ? Math.round((rp/pp-1)*100) : null;
-  const hrChange = rh && ph ? Math.round((rh/ph-1)*100) : null;
-  const efficiency = rp && rh && pp && ph ? Math.round(((rp/rh)/(pp/ph)-1)*100) : null;
-  const headline = efficiency !== null && efficiency > 3 ? "Wygląda na to, że forma idzie w górę." : efficiency !== null && efficiency < -3 ? "Ostatnie tygodnie wyglądają na słabsze." : "Forma jest obecnie raczej stabilna.";
+  const recentPower = recent.filter(x => typeof x.avgPowerW === "number" && x.avgPowerW > 0);
+  const previousPower = previous.filter(x => typeof x.avgPowerW === "number" && x.avgPowerW > 0);
+  const recentHr = recent.filter(x => typeof x.avgHr === "number" && x.avgHr > 0);
+  const previousHr = previous.filter(x => typeof x.avgHr === "number" && x.avgHr > 0);
+  const recentPaired = recent.filter(x => typeof x.avgPowerW === "number" && x.avgPowerW > 0 && typeof x.avgHr === "number" && x.avgHr > 0);
+  const previousPaired = previous.filter(x => typeof x.avgPowerW === "number" && x.avgPowerW > 0 && typeof x.avgHr === "number" && x.avgHr > 0);
+  const rp = avg(recentPower.map(x=>x.avgPowerW!));
+  const pp = avg(previousPower.map(x=>x.avgPowerW!));
+  const rh = avg(recentHr.map(x=>x.avgHr!));
+  const ph = avg(previousHr.map(x=>x.avgHr!));
+  const recentEfficiency = avg(recentPaired.map(x=>x.avgPowerW!/x.avgHr!));
+  const previousEfficiency = avg(previousPaired.map(x=>x.avgPowerW!/x.avgHr!));
+  const sleepAvg = avg(health.slice(0,7).map(x=>x.sleepMinutes).filter(x=>x>0));
+  const powerChange = rp !== null && pp !== null && pp > 0 ? Math.round((rp/pp-1)*100) : null;
+  const hrChange = rh !== null && ph !== null && ph > 0 ? Math.round((rh/ph-1)*100) : null;
+  const efficiencyChange = recentEfficiency !== null && previousEfficiency !== null && previousEfficiency > 0 ? Math.round((recentEfficiency/previousEfficiency-1)*100) : null;
+  const headline = efficiencyChange !== null && efficiencyChange > 3 ? "Efektywność moc/HR poprawia się." : efficiencyChange !== null && efficiencyChange < -3 ? "Efektywność moc/HR spadła." : "Analiza danych treningowych";
   const parts = [
-    `Na podstawie ${rows.length} treningów trener porównuje teraz ostatnie 90 dni (${recent.length} jednostek) z poprzednimi 90 dniami (${previous.length} jednostek).`,
-    powerChange !== null ? `Średnia moc z ostatnich 90 dni zmieniła się o ${powerChange > 0 ? "+" : ""}${powerChange}% względem poprzednich 90 dni${hrChange !== null ? `, przy zmianie średniego HR o ${hrChange > 0 ? "+" : ""}${hrChange}%` : ""}.` : "Dla części treningów brakuje porównywalnej mocy, więc trend mocy trzeba traktować ostrożnie.",
-    efficiency !== null ? `Wskaźnik mocy względem HR zmienił się o ${efficiency > 0 ? "+" : ""}${efficiency}%. To jest obecnie najważniejszy sygnał wydolności tlenowej w tej analizie.` : "",
-    sleepAvg ? `Garmin pokazuje średnio około ${Math.round(sleepAvg/6)/10} h snu na noc w ostatnich 7 dniach — ten sygnał będzie uwzględniany przy decyzji o intensywności.` : "",
-    `FTP używany przez trenera: ${ftp} W. Sam wynik FTP nie jest jeszcze automatycznie podnoszony tylko dlatego, że pojedynczy trening był mocny.`
-  ].filter(Boolean);
+    `Analiza obejmuje ${rows.length} aktywności: ${recent.length} z ostatnich 90 dni i ${previous.length} z poprzednich 90 dni.`,
+    powerChange !== null ? `Średnia moc w sesjach z miernikiem zmieniła się o ${powerChange > 0 ? "+" : ""}${powerChange}% (n=${recentPower.length} vs ${previousPower.length}).` : "Brak wystarczającej liczby sesji z pomiarem mocy do porównania okresów.",
+    hrChange !== null ? `Średnie HR w zarejestrowanych sesjach zmieniło się o ${hrChange > 0 ? "+" : ""}${hrChange}% (n=${recentHr.length} vs ${previousHr.length}); interpretuj z uwzględnieniem intensywności i warunków.` : "Brak wystarczających danych HR do porównania okresów.",
+    efficiencyChange !== null ? `Wskaźnik średniej mocy do średniego HR z sesji sparowanych zmienił się o ${efficiencyChange > 0 ? "+" : ""}${efficiencyChange}% (sesje z mocą i HR jednocześnie: ${recentPaired.length} vs ${previousPaired.length}).` : "Za mało porównywalnych sesji z jednoczesnym pomiarem mocy i HR do oceny efektywności.",
+    sleepAvg ? `Średni sen z ostatnich 7 dostępnych dni: ${(sleepAvg/60).toFixed(1)} h.` : "Brak świeżych danych snu.",
+    `FTP używany przez trenera: ${ftp} W. FTP nie jest automatycznie aktualizowany na podstawie pojedynczego treningu.`
+  ];
   return { headline, body: parts.join(" ") };
 }
 

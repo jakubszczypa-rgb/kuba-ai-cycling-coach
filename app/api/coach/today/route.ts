@@ -38,10 +38,13 @@ export async function GET() {
     return NextResponse.json({ error: "PROFILE_NOT_FOUND" }, { status: 404 });
   }
 
-  const [statusResult, activityResult, healthResult, planResult, streamResult] = await Promise.all([
+  const [statusResult, garminActivityResult, stravaActivityResult, healthResult, planResult, garminStreamResult, stravaStreamResult] = await Promise.all([
     supabase.from("daily_status")
       .select("feeling,available_minutes,night_shift,illness,work_shift,notes")
       .eq("athlete_id", profile.id).eq("date", date).maybeSingle(),
+    supabase.from("garmin_activities")
+      .select("activity_start,duration_sec,avg_power_w,normalized_power_w,avg_hr,tss,sport")
+      .eq("athlete_id", profile.id).gte("activity_start", since).order("activity_start"),
     supabase.from("strava_activities")
       .select("activity_start,duration_sec,avg_power_w,weighted_power_w,avg_hr,suffer_score,sport")
       .eq("athlete_id", profile.id).gte("activity_start", since).order("activity_start"),
@@ -51,25 +54,30 @@ export async function GET() {
     supabase.from("plan_days")
       .select("plan_date,title,workout_type,duration_minutes,priority,status")
       .eq("athlete_id", profile.id).gte("plan_date", date).order("plan_date").limit(7),
+    supabase.from("garmin_activity_streams").select("metrics,sample_count,activity_start")
+      .eq("athlete_id", profile.id).gte("activity_start", since)
+      .order("activity_start", { ascending: false }).limit(30),
     supabase.from("strava_activity_streams").select("metrics,sample_count,activity_start")
       .eq("athlete_id", profile.id).gte("activity_start", since)
       .order("activity_start", { ascending: false }).limit(30),
   ]);
 
-  if (statusResult.error || activityResult.error || healthResult.error || planResult.error || streamResult.error) {
-    const error = statusResult.error ?? activityResult.error ?? healthResult.error ?? planResult.error ?? streamResult.error;
-    return NextResponse.json({ error: error?.message ?? "DATA_LOAD_FAILED" }, { status: 500 });
-  }
+  const requiredErrors = [statusResult.error, garminActivityResult.error, stravaActivityResult.error, healthResult.error, planResult.error, garminStreamResult.error, stravaStreamResult.error].filter(Boolean);
+  if (requiredErrors.length === 7) return NextResponse.json({ error: requiredErrors[0]?.message ?? "DATA_LOAD_FAILED" }, { status: 500 });
 
   const status = statusResult.data;
-  const activities = (activityResult.data ?? []).map(a => ({
-    date: a.activity_start,
-    durationMinutes: (a.duration_sec ?? 0) / 60,
-    avgPowerW: a.avg_power_w,
-    normalizedPowerW: a.weighted_power_w,
-    avgHr: a.avg_hr,
-    tss: a.suffer_score,
-  }));
+  const garminActivities = garminActivityResult.data ?? [];
+  const fallbackStravaActivities = (stravaActivityResult.data ?? []).filter(s =>
+    !garminActivities.some(g => Math.abs(new Date(g.activity_start).getTime() - new Date(s.activity_start).getTime()) < 10 * 60 * 1000)
+  );
+  const mergedActivities = [...garminActivities.map(a => ({
+    date: a.activity_start, durationMinutes: (a.duration_sec ?? 0) / 60, avgPowerW: a.avg_power_w,
+    normalizedPowerW: a.normalized_power_w, avgHr: a.avg_hr, tss: a.tss,
+  })), ...fallbackStravaActivities.map(a => ({
+    date: a.activity_start, durationMinutes: (a.duration_sec ?? 0) / 60, avgPowerW: a.avg_power_w,
+    normalizedPowerW: a.weighted_power_w, avgHr: a.avg_hr, tss: a.suffer_score,
+  }))];
+  const activities = mergedActivities.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const ftpW = Number(profile.current_ftp_w) > 0 ? Number(profile.current_ftp_w) : 238;
   const analytics = analyzeTraining(activities, ftpW);
@@ -92,18 +100,23 @@ export async function GET() {
   };
 
   const result = coachToday({ ...input, ftpW });
-  const streamMetrics = (streamResult.data ?? []).map(row => row.metrics as Record<string, any>);
+  const garminStreams = garminStreamResult.data ?? [];
+  const fallbackStravaStreams = (stravaStreamResult.data ?? []).filter(s =>
+    !garminStreams.some(g => Math.abs(new Date(g.activity_start).getTime() - new Date(s.activity_start).getTime()) < 10 * 60 * 1000)
+  );
+  const streamRows = [...garminStreams, ...fallbackStravaStreams];
+  const streamMetrics = streamRows.map(row => row.metrics as Record<string, any>);
   const validDecoupling = streamMetrics.map(m => m.aerobicDecouplingPct).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
   const intervals = streamMetrics.flatMap(m => Array.isArray(m.intervals) ? m.intervals : []);
   const recoveryDrops = intervals.map((x: any) => x.recoveryHrDropBpm).filter((v: any): v is number => typeof v === "number" && Number.isFinite(v));
   const streamAnalysis = {
-    analyzedActivities: streamMetrics.length,
-    sampleCount: (streamResult.data ?? []).reduce((sum, row) => sum + Number(row.sample_count ?? 0), 0),
+    analyzedActivities: streamMetrics.length,\n    primarySource: "Garmin FIT",
+    sampleCount: streamRows.reduce((sum, row) => sum + Number(row.sample_count ?? 0), 0),
     averageAerobicDecouplingPct: validDecoupling.length ? Math.round(validDecoupling.reduce((a,b)=>a+b,0) / validDecoupling.length * 10) / 10 : null,
     aerobicDecouplingSessions: validDecoupling.length,
     detectedIntervals: intervals.length,
     averageIntervalRecoveryHrDropBpm: recoveryDrops.length ? Math.round(recoveryDrops.reduce((a,b)=>a+b,0) / recoveryDrops.length) : null,
-    note: "Wyniki wyliczone z sekundowych strumieni mocy i tętna Stravy. Decoupling liczony wyłącznie z dostatecznie długich fragmentów 55-78% FTP; brak wyniku oznacza brak wystarczających danych.",
+    note: "Wyniki wyliczone głównie z sekundowych strumieni Garmin FIT; Strava uzupełnia wyłącznie brakujące aktywności. Decoupling liczony wyłącznie z dostatecznie długich fragmentów 55-78% FTP; brak wyniku oznacza brak wystarczających danych.",
   };
   const brief = {
     ...buildAthleteBrief({

@@ -22,26 +22,28 @@ export async function POST() {
   if (!rows?.length) return NextResponse.json({ error: "NO_STREAM_DATA" }, { status: 409 });
 
   const ftpW = Number(profile.current_ftp_w) > 0 ? Number(profile.current_ftp_w) : 238;
-  // Send only decision-relevant aggregates to the model. Raw 30-second timelines
-  // remain stored in Supabase and are not duplicated into a huge prompt.
   const sessions = rows.map(row => {
     const m = (row.metrics ?? {}) as Record<string, any>;
+    const q = m.dataQuality && typeof m.dataQuality === "object" ? m.dataQuality : null;
+    const flags: string[] = Array.isArray(q?.flags) ? [...q.flags] : [];
+    const score = Number.isFinite(Number(q?.score)) ? Number(q?.score) : null;
+    const finite = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? v : null;
+    let ef = finite(m.powerHrEfficiency);
+    if (ef !== null && (ef < 0.5 || ef > 2.5)) { flags.push("EF_OUTSIDE_SANITY_RANGE"); ef = null; }
+    let drift = finite(m.aerobicDecouplingPct);
+    if (drift !== null && (drift < -30 || drift > 30)) { flags.push("DECOUPLING_OUTSIDE_SANITY_RANGE"); drift = null; }
+    const coverage = m.coverage ?? null;
+    if (Number(coverage?.power) < 70) flags.push("POWER_COVERAGE_BELOW_70");
+    if (Number(coverage?.heartRate) < 70) flags.push("HR_COVERAGE_BELOW_70");
     return {
       date: row.activity_start,
       durationMin: Math.round(Number(row.duration_sec ?? m.durationSec ?? 0) / 60),
-      samples: Number(row.sample_count ?? m.sampleCount ?? 0),
-      coverage: m.coverage ?? null,
-      avgPowerW: m.avgPowerW ?? null,
-      avgHr: m.avgHr ?? null,
-      maxHr: m.maxHr ?? null,
-      maxPowerW: m.maxPowerW ?? null,
-      avgCadence: m.avgCadence ?? null,
-      avgSpeedMps: m.avgSpeedMps ?? null,
-      avgTempC: m.avgTempC ?? null,
-      avgGradePct: m.avgGradePct ?? null,
-      powerHrEfficiency: m.powerHrEfficiency ?? null,
-      aerobicDecouplingPct: m.aerobicDecouplingPct ?? null,
-      aerobicSamples: m.aerobicSamples ?? 0,
+      samples: Number(row.sample_count ?? m.sampleCount ?? 0), coverage,
+      dataQuality: { score, flags: [...new Set(flags)], usableForTrend: score !== null && score >= 60 && flags.length === 0 },
+      avgPowerW: finite(m.avgPowerW), avgHr: finite(m.avgHr), maxHr: finite(m.maxHr),
+      maxPowerW: finite(m.maxPowerW), avgCadence: finite(m.avgCadence), avgSpeedMps: finite(m.avgSpeedMps),
+      avgTempC: finite(m.avgTempC), avgGradePct: finite(m.avgGradePct),
+      powerHrEfficiency: ef, aerobicDecouplingPct: drift, aerobicSamples: Number(m.aerobicSamples ?? 0),
       timeInPowerZonesSec: m.timeInPowerZonesSec ?? null,
       intervals: Array.isArray(m.intervals) ? m.intervals.slice(0, 12) : [],
     };
@@ -70,7 +72,7 @@ export async function POST() {
         },
         {
           role: "user",
-          content: "Przeanalizuj wszystkie sesje z ostatnich 90 dni. Poszukaj trendów pomiędzy treningami, a także reakcji tętna w interwałach i przerwach. Dryf oceniaj wyłącznie dla wiarygodnych, długich odcinków tlenowych. Podawaj konkretne liczby. Dane: " + JSON.stringify(payload)
+          content: "Przeanalizuj sesje z ostatnich 90 dni. Sesje z dataQuality.usableForTrend=false nie mogą być podstawą wniosków o formie. Metryki null oznaczają brak wiarygodnego wyniku — nie uzupełniaj ich. Porównuj podobne warunki indoor/outdoor i zakresy mocy. Dryf oceniaj tylko, gdy metryka istnieje. Podawaj liczby i ograniczenia. Dane: " + JSON.stringify(payload)
         }
       ],
       max_completion_tokens: 5000,

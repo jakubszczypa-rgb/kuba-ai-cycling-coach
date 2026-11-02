@@ -13,7 +13,9 @@ export type NormalizedSample = {
 export type StreamMetrics = {
   sampleCount: number;
   durationSec: number;
-  coverage: { power: number; heartRate: number; paired: number };
+  coverage: { power: number; heartRate: number; paired: number; cadence: number; speed: number; temperature: number; grade: number };
+  signalQuality: { power: number | null; heartRate: number | null; cadence: number | null; speed: number | null; temperature: number | null; grade: number | null };
+  availableSignals: string[];
   dataQuality: { score: number; flags: string[]; timebase: "time_stream" | "index_fallback" };
   avgPowerW: number | null;
   avgHr: number | null;
@@ -132,6 +134,9 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
   const powerCoverage = samples.length ? powerValues.length / samples.length : 0;
   const hrCoverage = samples.length ? hrValues.length / samples.length : 0;
   const pairedCoverage = samples.length ? paired.length / samples.length : 0;
+  const coverageFor = (key: "cadenceRpm" | "speedMps" | "tempC" | "gradePct") => samples.length ? samples.filter(s => s[key] !== null).length / samples.length : 0;
+  const cadenceCoverage = coverageFor("cadenceRpm"), speedCoverage = coverageFor("speedMps");
+  const temperatureCoverage = coverageFor("tempC"), gradeCoverage = coverageFor("gradePct");
   if (powerCoverage < 0.8) flags.push("LOW_POWER_COVERAGE");
   if (hrCoverage < 0.8) flags.push("LOW_HR_COVERAGE");
   if (pairedCoverage < 0.7) flags.push("LOW_PAIRED_COVERAGE");
@@ -233,12 +238,11 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
       cadenceRpm: mean(chunk.flatMap(s => s.cadenceRpm === null ? [] : [s.cadenceRpm])),
     });
   }
-  const qualityScore = Math.max(0, Math.min(100, Math.round((powerCoverage * 0.4 + hrCoverage * 0.3 + pairedCoverage * 0.3) * 100 - flags.length * 5)));
+  // Quality describes the signals actually recorded. Missing optional power on an outdoor ride is not a data defect.\n  const signalCoverages = [powerCoverage, hrCoverage, cadenceCoverage, speedCoverage, temperatureCoverage, gradeCoverage].filter(v => v > 0);\n  const qualityScore = signalCoverages.length ? Math.round(signalCoverages.reduce((a, b) => a + b, 0) / signalCoverages.length * 100) : 0;\n  const pctOrNull = (v: number) => v > 0 ? Math.round(v * 100) : null;\n  const availableSignals = [\n    powerCoverage > 0 ? "power" : null, hrCoverage > 0 ? "heartRate" : null,\n    cadenceCoverage > 0 ? "cadence" : null, speedCoverage > 0 ? "speed" : null,\n    temperatureCoverage > 0 ? "temperature" : null, gradeCoverage > 0 ? "grade" : null,\n  ].filter((v): v is string => v !== null);
   return {
     sampleCount: samples.length,
     durationSec: samples.length ? samples[samples.length - 1].t - samples[0].t + 1 : 0,
-    coverage: { power: Math.round(powerCoverage * 100), heartRate: Math.round(hrCoverage * 100), paired: Math.round(pairedCoverage * 100) },
-    dataQuality: { score: qualityScore, flags, timebase: rawTime.length ? "time_stream" : "index_fallback" },
+    coverage: { power: Math.round(powerCoverage * 100), heartRate: Math.round(hrCoverage * 100), paired: Math.round(pairedCoverage * 100), cadence: Math.round(cadenceCoverage * 100), speed: Math.round(speedCoverage * 100), temperature: Math.round(temperatureCoverage * 100), grade: Math.round(gradeCoverage * 100) },\n    signalQuality: { power: pctOrNull(powerCoverage), heartRate: pctOrNull(hrCoverage), cadence: pctOrNull(cadenceCoverage), speed: pctOrNull(speedCoverage), temperature: pctOrNull(temperatureCoverage), grade: pctOrNull(gradeCoverage) },\n    availableSignals,\n    dataQuality: { score: qualityScore, flags, timebase: rawTime.length ? "time_stream" : "index_fallback" },
     avgPowerW: mean(powerValues) === null ? null : Math.round(mean(powerValues)!),
     avgHr: mean(hrValues) === null ? null : Math.round(mean(hrValues)!),
     maxHr: maximum(hrValues) === null ? null : Math.round(maximum(hrValues)!),

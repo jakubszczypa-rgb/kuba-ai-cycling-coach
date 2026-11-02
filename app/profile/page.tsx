@@ -91,7 +91,7 @@ export default function ProfilePage() {
         setStravaMessage(data?.error || "Synchronizacja Strava nie powiodła się.");
         return;
       }
-      setStravaMessage(`Strava: ${data.activities ?? 0} jazd zapisanych z ${data.fetched ?? 0} pobranych aktywności.`);
+      setStravaMessage(`Strava: ${data.activities ?? 0} jazd. Strumienie sekundowe: ${data.streamsSaved ?? 0} zapisane, ${data.streamsSkipped ?? 0} pominięte, ${data.streamsFailed ?? 0} błędów.`);
     } catch {
       setStravaMessage("Nie udało się połączyć z usługą synchronizacji Strava.");
     } finally {

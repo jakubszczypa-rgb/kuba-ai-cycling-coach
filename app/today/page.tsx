@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 type Feeling = "great" | "good" | "average" | "tired" | "wrecked";
 
 type CoachResponse = {
+  date?: string;
+  athlete?: { ftpW: number };
   today: { feeling: Feeling; availableMinutes: number; nightShift: boolean; illness: boolean; health: any };
   analytics: { load7d: number; load28d: number; hours7d: number; powerHrEfficiency: number | null; hardSessions7d: number; efficiencyTrend: string };
   decision: {

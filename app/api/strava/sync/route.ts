@@ -15,7 +15,8 @@ export async function POST() {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!profile) return NextResponse.json({ error: "PROFILE_NOT_FOUND" }, { status: 404 });
 
-    const ftpW = Number(profile.current_ftp_w) > 0 ? Number(profile.current_ftp_w) : 238;\n    const result = await syncStrava(profile.id, 180, ftpW);
+    const ftpW = Number(profile.current_ftp_w) > 0 ? Number(profile.current_ftp_w) : 238;
+    const result = await syncStrava(profile.id, 180, ftpW);
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "STRAVA_SYNC_FAILED" }, { status: 500 });

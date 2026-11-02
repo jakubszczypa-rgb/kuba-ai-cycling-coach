@@ -73,7 +73,7 @@ export default function ProfilePage() {
         setSyncMessage(data?.error || "Synchronizacja Garmin nie powiodła się.");
         return;
       }
-      setSyncMessage(`Garmin zsynchronizowany: ${data.activities ?? 0} treningów, ${data.health ?? 0} dni danych zdrowotnych.`);
+      setSyncMessage(`Garmin: ${data.activities ?? 0} aktywności, ${data.health ?? 0} dni regeneracji. Pliki FIT: ${data.fitSaved ?? 0} pobrane i przeanalizowane, ${data.fitSkipped ?? 0} już były, ${data.fitFailed ?? 0} błędów. Limit na jedno uruchomienie: ${data.fitLimit ?? 20}.`);
     } catch {
       setSyncMessage("Nie udało się połączyć z usługą synchronizacji Garmin.");
     } finally {

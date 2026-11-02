@@ -117,7 +117,7 @@ const POWER_ZONES = [
 ];
 
 function targetWatts(target: string, ftp: number) {
-  const values = [...target.matchAll(/(\\d+(?:\\.\\d+)?)/g)].map(match => Number(match[1])).filter(Number.isFinite);
+  const values = [...target.matchAll(/(\d+(?:\.\d+)?)/g)].map(match => Number(match[1])).filter(Number.isFinite);
   if (!values.length) return { low: ftp * 0.4, high: ftp * 0.55 };
   if (/≤|<=/.test(target)) return { low: 0, high: values[0] };
   if (values.length > 1) return { low: Math.min(values[0], values[1]), high: Math.max(values[0], values[1]) };

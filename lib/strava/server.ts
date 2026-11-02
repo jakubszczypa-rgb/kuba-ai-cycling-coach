@@ -188,12 +188,12 @@ export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
   return { activities: saved, fetched: activities.length, days, streamsSaved, streamsSkipped, streamsFailed };
 }
 
-export async function reprocessStravaStreams(athleteId: string, limit = 100) {
+export async function reprocessStravaStreams(athleteId: string, limit = 100, offset = 0) {
   const supabase = createServiceClient();
   const [{ data: rows, error: rowsError }, { data: history, error: historyError }, { data: activities, error: activitiesError }] = await Promise.all([
     supabase.from("strava_activity_streams")
       .select("strava_activity_id,activity_start,streams")
-      .eq("athlete_id", athleteId).order("activity_start", { ascending: true }).limit(limit),
+      .eq("athlete_id", athleteId).order("activity_start", { ascending: true }).range(offset, offset + limit - 1),
     supabase.from("athlete_ftp_history").select("ftp_w,valid_from_date")
       .eq("athlete_id", athleteId).order("valid_from_date", { ascending: true }),
     supabase.from("strava_activities").select("strava_activity_id,indoor")

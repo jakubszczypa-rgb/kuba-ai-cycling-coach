@@ -108,18 +108,25 @@ export async function GET() {
   );
   const streamRows = [...garminStreams, ...fallbackStravaStreams];
   const streamMetrics = streamRows.map(row => row.metrics as Record<string, any>);
-  const validDecoupling = streamMetrics.map(m => m.aerobicDecouplingPct).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
-  const intervals = streamMetrics.flatMap(m => Array.isArray(m.intervals) ? m.intervals : []);
+  const hrUsable = streamMetrics.filter(m => Number(m.coverage?.heartRate) >= 70);
+  const powerUsable = streamMetrics.filter(m => Number(m.coverage?.power) >= 70);
+  const hrOnlySessions = hrUsable.filter(m => Number(m.coverage?.power) < 70);
+  const validDecoupling = streamMetrics.filter(m => Number(m.coverage?.power) >= 70 && Number(m.coverage?.heartRate) >= 70)
+    .map(m => m.aerobicDecouplingPct).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const intervals = powerUsable.flatMap(m => Array.isArray(m.intervals) ? m.intervals : []);
   const recoveryDrops = intervals.map((x: any) => x.recoveryHrDropBpm).filter((v: any): v is number => typeof v === "number" && Number.isFinite(v));
   const streamAnalysis = {
     analyzedActivities: streamMetrics.length,
+    hrUsableSessions: hrUsable.length,
+    powerUsableSessions: powerUsable.length,
+    hrOnlySessions: hrOnlySessions.length,
     primarySource: "Garmin FIT",
     sampleCount: streamRows.reduce((sum, row) => sum + Number(row.sample_count ?? 0), 0),
     averageAerobicDecouplingPct: validDecoupling.length ? Math.round(validDecoupling.reduce((a,b)=>a+b,0) / validDecoupling.length * 10) / 10 : null,
     aerobicDecouplingSessions: validDecoupling.length,
     detectedIntervals: intervals.length,
     averageIntervalRecoveryHrDropBpm: recoveryDrops.length ? Math.round(recoveryDrops.reduce((a,b)=>a+b,0) / recoveryDrops.length) : null,
-    note: "Wyniki wyliczone głównie z sekundowych strumieni Garmin FIT; Strava uzupełnia wyłącznie brakujące aktywności. Decoupling liczony wyłącznie z dostatecznie długich fragmentów 55-78% FTP; brak wyniku oznacza brak wystarczających danych.",
+    note: "Wyniki wyliczone głównie z sekundowych strumieni Garmin FIT; Strava uzupełnia wyłącznie brakujące aktywności. Jakość oceniamy osobno dla każdego sygnału: treningi outdoor bez mocy pozostają użyteczne do analizy HR i kontekstu (np. temperatury, prędkości, przewyższeń), a analizy mocy wymagają wiarygodnego pomiaru mocy. Decoupling liczony wyłącznie z dostatecznie długich fragmentów 55-78% FTP; brak wyniku oznacza brak wystarczających danych.",
   };
   const brief = {
     ...buildAthleteBrief({

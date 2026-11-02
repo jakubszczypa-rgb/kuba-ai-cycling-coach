@@ -83,7 +83,7 @@ export function resampleToOneHz(samples: NormalizedSample[]): NormalizedSample[]
   for (let t = start; t <= end; t++) {
     while (cursor + 1 < samples.length && samples[cursor + 1].t <= t + 0.5) cursor++;
     const sample = samples[cursor];
-    const closeEnough = Math.abs(sample.t - t) <= 1;
+    const closeEnough = Math.abs(sample.t - t) <= 0.5;
     result.push({
       t,
       powerW: closeEnough ? sample.powerW : null,

@@ -180,16 +180,16 @@ export default function ProfilePage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-orange-400">STRAVA</p>
-              <h2 className="mt-2 text-xl font-semibold">Pełna historia treningów</h2>
+              <h2 className="mt-2 text-xl font-semibold">Dodatkowe źródło treningów</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Strava będzie źródłem historii jazdy z ostatnich 180 dni, a Garmin zostaje źródłem danych regeneracji.
+                Garmin Connect jest głównym źródłem treningów i regeneracji. Strava pozostaje opcjonalnym źródłem uzupełniającym.
               </p>
             </div>
             {stravaConnected ? (
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">✓ Strava połączona</span>
                 <button onClick={syncStrava} disabled={stravaSyncing} className="rounded-xl border border-orange-400 bg-orange-400/10 px-4 py-3 font-semibold text-orange-200 disabled:opacity-50">
-                  {stravaSyncing ? "Synchronizuję..." : "Pobierz 180 dni"}
+                  {stravaSyncing ? "Synchronizuję..." : "Synchronizuj Strava"}
                 </button>
               </div>
             ) : (

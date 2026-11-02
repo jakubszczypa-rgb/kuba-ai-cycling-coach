@@ -113,7 +113,7 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
       const recoveryMin = recovery.length ? Math.min(...recovery) : null;
       intervals.push({
         startSec: time[s] ?? s, endSec: time[e] ?? e, durationSec: (time[e] ?? e) - (time[s] ?? s) + 1,
-        avgPowerW: Math.round(avg(ws) ?? 0), avgHr: avg(hs) === null ? null : Math.round(avg(hs)!),
+        avgPowerW: Math.round(avg(ws) ?? 0), avgCadence: avg(cadence.slice(s, e + 1).filter((v): v is number => v !== null)), avgHr: avg(hs) === null ? null : Math.round(avg(hs)!),
         maxHr: max(hs) === null ? null : Math.round(max(hs)!),
         recoveryHrDropBpm: endHr !== null && recoveryMin !== null ? Math.round(endHr - recoveryMin) : null,
       });

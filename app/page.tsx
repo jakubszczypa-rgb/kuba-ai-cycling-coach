@@ -1,184 +1,118 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 
-type Feeling = "great" | "good" | "average" | "tired" | "wrecked";
-type TimeOption = 0 | 30 | 60 | 90 | 120 | 180;
-
-const feelingLabels: Record<Feeling, string> = {
-  great: "Bardzo dobrze",
-  good: "Dobrze",
-  average: "Średnio",
-  tired: "Zmęczony",
-  wrecked: "Zajechany",
+type CoachData = {
+  date: string;
+  athlete: { name: string | null; ftpW: number; vo2max: number | null; goal: string | null };
+  today: { feeling: string; availableMinutes: number; nightShift: boolean; illness: boolean; health: {
+    sleep_minutes: number | null; sleep_score: number | null; resting_hr: number | null;
+    hrv_ms: number | null; hrv_status: string | null; body_battery: number | null;
+  } | null };
+  analytics: { load7d: number; load28d: number; hours7d: number; hours28d: number; powerHrEfficiency: number | null; hardSessions7d: number; trainingStatus: string; formScore: number | null };
+  streamAnalysis?: { analyzedActivities: number; hrUsableSessions: number; powerUsableSessions: number; hrOnlySessions: number };
+  decision: { decision: string; intensity: string; workoutType: string; durationMinutes: number; confidence: number; reasoning: string; workout: { title: string; steps: {name:string;durationMinutes:number;target:string}[] } | null };
+  plan: { plan_date: string; title: string; workout_type: string; duration_minutes: number; status: string }[];
 };
 
 export default function Home() {
-  const [feeling, setFeeling] = useState<Feeling>("good");
-  const [time, setTime] = useState<TimeOption>(60);
-  const [nightShift, setNightShift] = useState(false);
+  const [data, setData] = useState<CoachData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const recommendation = useMemo(() => {
-    if (nightShift || feeling === "wrecked") {
-      return {
-        status: "REST",
-        color: "danger",
-        title: "Dzisiaj odpuszczamy mocny trening.",
-        workout: time >= 30 ? "30–45 min bardzo lekkiego Z1/Z2 albo pełny odpoczynek" : "Pełny odpoczynek",
-        reason: "Nocna zmiana lub bardzo niska energia ma pierwszeństwo przed planem treningowym.",
-      };
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/coach/today", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error === "UNAUTHENTICATED" ? "Zaloguj się, aby zobaczyć swój dashboard." : payload?.error || "Nie udało się pobrać danych coacha.");
+      setData(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd pobierania danych.");
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    if (feeling === "tired") {
-      return {
-        status: "EASY",
-        color: "warning",
-        title: "Lekki trening zamiast jakościowego bodźca.",
-        workout: time >= 60 ? "45–60 min Z2" : time >= 30 ? "30 min Z1/Z2" : "Odpoczynek",
-        reason: "Dane subiektywne wskazują na podwyższone zmęczenie.",
-      };
-    }
+  useEffect(() => { void refresh(); }, [refresh]);
 
-    if (time === 0) {
-      return {
-        status: "REST",
-        color: "neutral",
-        title: "Brak czasu na trening.",
-        workout: "Odpoczynek — plan przesuniemy dynamicznie.",
-        reason: "Dostępny czas jest ważnym ograniczeniem planu.",
-      };
-    }
+  if (loading) return <main className="min-h-screen bg-slate-950 p-6 text-slate-300"><div className="mx-auto max-w-6xl">Ładowanie Twojego dashboardu treningowego…</div></main>;
 
-    return {
-      status: "TRAIN",
-      color: "success",
-      title: "Dzisiaj możemy trenować.",
-      workout: time >= 120 ? "Endurance 2 h+" : time >= 90 ? "Endurance 75–90 min" : time >= 60 ? "Endurance 60 min" : "Krótki trening jakościowy lub Z2",
-      reason: "Na ten moment nie ma sygnału, żeby odwoływać trening.",
-    };
-  }, [feeling, nightShift, time]);
+  if (!data) return <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100"><div className="mx-auto max-w-xl rounded-3xl border border-slate-800 bg-slate-900 p-7"><p className="text-sm uppercase tracking-widest text-cyan-400">KUBA AI CYCLING COACH</p><h1 className="mt-3 text-3xl font-semibold">Twój trener kolarski</h1><p className="mt-3 text-slate-400">{error}</p><div className="mt-6 flex flex-wrap gap-3"><Link href="/login" className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950">Zaloguj się</Link><button onClick={refresh} className="rounded-xl border border-slate-700 px-5 py-3">Spróbuj ponownie</button></div></div></main>;
+
+  const health = data.today.health;
+  const decisionLabel = data.decision.decision === "REST" ? "Odpoczynek" : data.decision.decision === "EASY" ? "Lekka jazda" : "Trening";
+  const statusColor = data.decision.decision === "REST" ? "text-amber-300" : data.decision.intensity === "HIGH" ? "text-cyan-300" : "text-emerald-300";
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-8 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.25em] text-cyan-400">KUBA AI CYCLING COACH</p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">Dzisiaj</h1>
-            <p className="mt-2 max-w-2xl text-slate-400">
-              Pierwszy moduł przyszłego trenera: Twoje samopoczucie + dostępny czas + kontekst zmiany.
-            </p>
-          </div>
-          <div className="hidden rounded-full border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-300 sm:block">
-            MVP 0.1
-          </div>
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div><p className="text-sm font-medium uppercase tracking-[0.25em] text-cyan-400">KUBA AI CYCLING COACH</p><h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Cześć{data.athlete.name ? ", " + data.athlete.name : ""}.</h1><p className="mt-2 text-slate-400">Twój trening, regeneracja i plan w jednym miejscu · {data.date}</p></div>
+          <button onClick={refresh} className="rounded-xl border border-slate-700 px-4 py-2 text-sm hover:border-cyan-400">Odśwież dane</button>
         </header>
 
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl shadow-black/20">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm text-slate-400">Decyzja trenera</p>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className={`h-3 w-3 rounded-full ${recommendation.color === "danger" ? "bg-rose-400" : recommendation.color === "warning" ? "bg-amber-400" : recommendation.color === "success" ? "bg-emerald-400" : "bg-slate-400"}`} />
-                  <span className="text-2xl font-semibold">{recommendation.status}</span>
-                </div>
-              </div>
-              <div className="rounded-2xl bg-slate-950 px-4 py-3 text-right">
-                <p className="text-xs uppercase tracking-wider text-slate-500">Dostępny czas</p>
-                <p className="mt-1 text-xl font-semibold">{time === 0 ? "brak" : `${time} min`}</p>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <h2 className="text-2xl font-semibold">{recommendation.title}</h2>
-              <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-400">Rekomendowany trening</p>
-                <p className="mt-2 text-lg font-medium">{recommendation.workout}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-400">{recommendation.reason}</p>
-              </div>
-            </div>
-
-            <div className="mt-8 grid gap-5 sm:grid-cols-2">
-              <div>
-                <p className="mb-3 text-sm font-medium text-slate-300">Jak się dzisiaj czujesz?</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(feelingLabels) as Feeling[]).map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => setFeeling(item)}
-                      className={`rounded-xl border px-3 py-3 text-left text-sm transition ${feeling === item ? "border-cyan-400 bg-cyan-400/10 text-cyan-200" : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700"}`}
-                    >
-                      {feelingLabels[item]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-3 text-sm font-medium text-slate-300">Ile masz czasu?</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {([0, 30, 60, 90, 120, 180] as TimeOption[]).map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => setTime(item)}
-                      className={`rounded-xl border px-3 py-3 text-sm transition ${time === item ? "border-cyan-400 bg-cyan-400/10 text-cyan-200" : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700"}`}
-                    >
-                      {item === 0 ? "0 min" : `${item} min`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <label className="mt-6 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-              <input
-                type="checkbox"
-                checked={nightShift}
-                onChange={(e) => setNightShift(e.target.checked)}
-                className="h-4 w-4 accent-cyan-400"
-              />
-              <span>
-                <span className="block text-sm font-medium">Jestem po / przed nocną zmianą</span>
-                <span className="block text-xs text-slate-500">Docelowo ten kontekst pobierzemy z Twojego grafiku pracy.</span>
-              </span>
-            </label>
+        <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+          <div className="rounded-3xl border border-cyan-900/70 bg-gradient-to-br from-slate-900 to-slate-950 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm uppercase tracking-widest text-cyan-400">Decyzja coacha na dziś</p><span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Pewność {Math.round(data.decision.confidence * 100)}%</span></div>
+            <h2 className={"mt-3 text-4xl font-semibold " + statusColor}>{decisionLabel}</h2>
+            <p className="mt-2 text-xl">{data.decision.workout?.title ?? "Regeneracja"}</p>
+            <p className="mt-2 text-sm text-slate-400">{data.decision.durationMinutes} min · {data.decision.intensity} · {data.decision.workoutType}</p>
+            <p className="mt-5 max-w-3xl leading-7 text-slate-300">{data.decision.reasoning}</p>
+            {data.decision.workout && <div className="mt-5 space-y-2">{data.decision.workout.steps.map((step,i)=><div key={i} className="flex flex-wrap justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm"><span>{step.name} · {step.durationMinutes} min</span><span className="text-cyan-300">{step.target}</span></div>)}</div>}
+            <div className="mt-6 flex flex-wrap gap-3"><Link href="/today" className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950">Szczegóły treningu</Link><Link href="/check-in" className="rounded-xl border border-slate-700 px-5 py-3">Zrób check-in</Link></div>
           </div>
 
-          <aside className="space-y-6">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-              <p className="text-sm text-slate-400">Profil celu</p>
-              <h2 className="mt-2 text-xl font-semibold">Więcej mocy przy niższym HR</h2>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <Metric label="FTP" value="238 W" />
-                <Metric label="VO₂max" value="44" />
-                <Metric label="Cel zimowy" value="Endurance" />
-                <Metric label="Coach mode" value="Dynamic" />
-              </div>
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <p className="text-sm uppercase tracking-widest text-slate-500">Regeneracja Garmin</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <Metric label="Sen" value={health?.sleep_minutes ? (health.sleep_minutes / 60).toFixed(1) + " h" : "—"} />
+              <Metric label="Sleep score" value={health?.sleep_score != null ? String(health.sleep_score) : "—"} />
+              <Metric label="HRV" value={health?.hrv_ms != null ? health.hrv_ms + " ms" : "—"} />
+              <Metric label="Body Battery" value={health?.body_battery != null ? String(health.body_battery) : "—"} />
             </div>
+            <p className="mt-4 text-sm text-slate-400">Status HRV: {health?.hrv_status ?? "brak danych"} · Tętno spoczynkowe: {health?.resting_hr ?? "—"} bpm</p>
+            <Link href="/analysis" className="mt-5 inline-block text-sm text-cyan-300 hover:text-cyan-200">Pełna analiza regeneracji →</Link>
+          </div>
+        </section>
 
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-              <p className="text-sm text-slate-400">Co dalej</p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-                <li>01 — podłączenie Garmin Personal API</li>
-                <li>02 — baza treningów + zdrowia</li>
-                <li>03 — engine fatigue / recovery</li>
-                <li>04 — prawdziwa decyzja AI</li>
-                <li>05 — dynamiczny plan 2–3 tygodnie</li>
-              </ul>
-            </div>
-          </aside>
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Metric label="FTP" value={data.athlete.ftpW + " W"} />
+          <Metric label="Obciążenie 7 dni" value={String(data.analytics.load7d)} />
+          <Metric label="Czas 7 dni" value={data.analytics.hours7d + " h"} />
+          <Metric label="Mocne sesje 7 dni" value={String(data.analytics.hardSessions7d)} />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <h2 className="text-xl font-semibold">Ostatnie dane treningowe</h2>
+            <div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Obciążenie 28 dni" value={String(data.analytics.load28d)} /><Metric label="Czas 28 dni" value={data.analytics.hours28d + " h"} /><Metric label="Forma" value={data.analytics.trainingStatus} /><Metric label="Form score" value={data.analytics.formScore == null ? "—" : data.analytics.formScore + "/100"} /></div>
+            <p className="mt-4 text-sm text-slate-400">Sesje ze strumieniami: {data.streamAnalysis?.analyzedActivities ?? 0} · HR użyteczne: {data.streamAnalysis?.hrUsableSessions ?? 0} · Moc użyteczna: {data.streamAnalysis?.powerUsableSessions ?? 0} · Outdoor HR-only: {data.streamAnalysis?.hrOnlySessions ?? 0}</p>
+            <Link href="/analysis" className="mt-4 inline-block text-sm text-cyan-300">Przejdź do analizy →</Link>
+          </div>
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <h2 className="text-xl font-semibold">Najbliższy plan</h2>
+            <div className="mt-4 space-y-2">{data.plan.length ? data.plan.slice(0,5).map((item,i)=><div key={i} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-slate-500">{item.plan_date} · {item.status}</p></div><span className="text-sm text-cyan-300">{item.duration_minutes} min</span></div>) : <p className="text-sm text-slate-500">Nie masz jeszcze planu. Dodaj grafik pracy, aby go wygenerować.</p>}</div>
+            <Link href="/plan" className="mt-4 inline-block text-sm text-cyan-300">Grafik i plan treningowy →</Link>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <NavCard href="/analysis" title="Moja forma" detail="Trendy mocy, tętna i obciążenia" />
+          <NavCard href="/plan" title="Grafik + plan" detail="Zmiany 7/7 i treningi na 3 tygodnie" />
+          <NavCard href="/workout" title="Kreator treningu" detail="Zaprojektuj sesję i eksportuj do Zwifta" />
+          <NavCard href="/profile" title="Profil i Garmin" detail="FTP, dane zawodnika i synchronizacja" />
         </section>
       </div>
     </main>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-slate-950/70 p-4">
-      <p className="text-xs uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold">{value}</p>
-    </div>
-  );
+function Metric({label,value}:{label:string;value:string}) {
+  return <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><p className="text-xs uppercase tracking-wider text-slate-500">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>;
+}
+function NavCard({href,title,detail}:{href:string;title:string;detail:string}) {
+  return <Link href={href} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-cyan-700"><p className="font-semibold">{title}</p><p className="mt-2 text-sm text-slate-400">{detail}</p></Link>;
 }

@@ -56,7 +56,7 @@ const round = (v: number, places = 1) => Math.round(v * 10 ** places) / 10 ** pl
 export function normalizeStravaStreams(streams: StravaStreams): NormalizedSample[] {
   const time = asNumbers(streams, "time");
   const hasTime = time.length > 0;
-  const base = hasTime ? time : Array.from({ length: Math.max(...["watts", "heartrate", "cadence", "velocity_smooth"].map(k => asNumbers(streams, k).length), 0) }, (_, i) => i);
+  const base: number[] = hasTime ? time.map((value, index) => value ?? index) : Array.from({ length: Math.max(...["watts", "heartrate", "cadence", "velocity_smooth"].map(k => asNumbers(streams, k).length), 0) }, (_, i) => i);
   const aligned = (key: string) => {
     const values = asNumbers(streams, key);
     return values.length === base.length ? values : [];

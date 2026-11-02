@@ -78,7 +78,7 @@ export default function CheckInPage() {
         durationMinutes: row.duration_minutes, priority: row.priority, status: row.status,
       }));
 
-      const adjusted = adjustPlan({ plan, date, feeling, availableMinutes: minutes, nightShift });
+      const adjusted = adjustPlan({ plan, date, feeling, availableMinutes: minutes, nightShift, illness });
       const changed = adjusted.filter((item, index) => {
         const before = plan[index];
         return before && (
@@ -142,6 +142,10 @@ export default function CheckInPage() {
         <label className="flex items-center gap-3">
           <input type="checkbox" checked={nightShift} onChange={e => setNightShift(e.target.checked)} />
           Jestem po / przed nocną zmianą
+        </label>
+        <label className="flex items-center gap-3">
+          <input type="checkbox" checked={illness} onChange={e => setIllness(e.target.checked)} />
+          Jestem chory / mam objawy infekcji
         </label>
 
         {decision && (

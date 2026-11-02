@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { syncStrava } from "@/lib/strava/server";
 
+export const maxDuration = 60;
+
 export async function POST() {
   try {
     const auth = await createClient();

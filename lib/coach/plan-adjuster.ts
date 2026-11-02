@@ -21,6 +21,20 @@ export function adjustPlan({ plan, date, feeling, availableMinutes, nightShift, 
   const current = next[idx];
   const forceRest = nightShift || illness || feeling === "wrecked" || availableMinutes <= 0;
 
+  if (illness || feeling === "wrecked") {
+    if (current.type !== "REST") {
+      next[idx] = {
+        ...current,
+        title: illness ? "Odpoczynek — choroba" : "Odpoczynek — pełna regeneracja",
+        type: "REST",
+        durationMinutes: 0,
+        priority: "RECOVERY",
+        status: "SKIPPED",
+      };
+    }
+    return next;
+  }
+
   if (forceRest) {
     if (current.type === "REST") return next;
 

@@ -14,12 +14,20 @@ export async function POST() {
   if (!profile) return NextResponse.json({ error: "PROFILE_NOT_FOUND" }, { status: 404 });
 
   const since = new Date(Date.now() - 90 * 86400000).toISOString();
-  const { data: rows, error } = await supabase.from("strava_activity_streams")
-    .select("activity_start,duration_sec,metrics,sample_count")
-    .eq("athlete_id", profile.id).gte("activity_start", since)
-    .order("activity_start", { ascending: false }).limit(60);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!rows?.length) return NextResponse.json({ error: "NO_STREAM_DATA" }, { status: 409 });
+  const [{ data: garminRows, error: garminError }, { data: stravaRows, error: stravaError }] = await Promise.all([
+    supabase.from("garmin_activity_streams").select("activity_start,duration_sec,metrics,sample_count")
+      .eq("athlete_id", profile.id).gte("activity_start", since).order("activity_start", { ascending: false }).limit(60),
+    supabase.from("strava_activity_streams").select("activity_start,duration_sec,metrics,sample_count")
+      .eq("athlete_id", profile.id).gte("activity_start", since).order("activity_start", { ascending: false }).limit(60),
+  ]);
+  if (garminError && stravaError) return NextResponse.json({ error: garminError.message || stravaError.message }, { status: 500 });
+  const garmin = garminRows ?? [];
+  const fallbackStrava = (stravaRows ?? []).filter(s =>
+    !garmin.some(g => Math.abs(new Date(g.activity_start).getTime() - new Date(s.activity_start).getTime()) < 10 * 60 * 1000)
+  );
+  const rows = [...garmin, ...fallbackStrava]
+    .sort((a, b) => new Date(b.activity_start).getTime() - new Date(a.activity_start).getTime()).slice(0, 60);
+  if (!rows.length) return NextResponse.json({ error: "NO_STREAM_DATA" }, { status: 409 });
 
   const ftpW = Number(profile.current_ftp_w) > 0 ? Number(profile.current_ftp_w) : 238;
   const sessions = rows.map(row => {
@@ -51,7 +59,7 @@ export async function POST() {
 
   const payload = {
     athlete: { name: profile.name, ftpW, goal: profile.primary_goal },
-    period: "ostatnie 90 dni",
+    period: "ostatnie 90 dni",\n    primarySource: "Garmin FIT",
     sessionsAnalyzed: sessions.length,
     totalSamples: sessions.reduce((sum, s) => sum + s.samples, 0),
     sessions,
@@ -72,7 +80,7 @@ export async function POST() {
         },
         {
           role: "user",
-          content: "Przeanalizuj sesje z ostatnich 90 dni. Sesje z dataQuality.usableForTrend=false nie mogą być podstawą wniosków o formie. Metryki null oznaczają brak wiarygodnego wyniku — nie uzupełniaj ich. Porównuj podobne warunki indoor/outdoor i zakresy mocy. Dryf oceniaj tylko, gdy metryka istnieje. Podawaj liczby i ograniczenia. Dane: " + JSON.stringify(payload)
+          content: "Przeanalizuj sesje z ostatnich 90 dni. Preferuj Garmin FIT jako źródło podstawowe; Strava może uzupełniać wyłącznie aktywności, których nie ma w Garmin. Sesje z dataQuality.usableForTrend=false nie mogą być podstawą wniosków o formie. Metryki null oznaczają brak wiarygodnego wyniku — nie uzupełniaj ich. Porównuj podobne warunki indoor/outdoor i zakresy mocy. Dryf oceniaj tylko, gdy metryka istnieje. Podawaj liczby i ograniczenia. Dane: " + JSON.stringify(payload)
         }
       ],
       max_completion_tokens: 5000,

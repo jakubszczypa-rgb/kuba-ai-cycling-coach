@@ -56,8 +56,8 @@ export async function GET() {
       .order("activity_start", { ascending: false }).limit(30),
   ]);
 
-  if (statusResult.error || activityResult.error || healthResult.error || planResult.error) {
-    const error = statusResult.error ?? activityResult.error ?? healthResult.error ?? planResult.error;
+  if (statusResult.error || activityResult.error || healthResult.error || planResult.error || streamResult.error) {
+    const error = statusResult.error ?? activityResult.error ?? healthResult.error ?? planResult.error ?? streamResult.error;
     return NextResponse.json({ error: error?.message ?? "DATA_LOAD_FAILED" }, { status: 500 });
   }
 
@@ -93,9 +93,9 @@ export async function GET() {
 
   const result = coachToday({ ...input, ftpW });
   const streamMetrics = (streamResult.data ?? []).map(row => row.metrics as Record<string, any>);
-  const validDecoupling = streamMetrics.map(m => Number(m.aerobicDecouplingPct)).filter(Number.isFinite);
+  const validDecoupling = streamMetrics.map(m => m.aerobicDecouplingPct).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
   const intervals = streamMetrics.flatMap(m => Array.isArray(m.intervals) ? m.intervals : []);
-  const recoveryDrops = intervals.map((x: any) => Number(x.recoveryHrDropBpm)).filter(Number.isFinite);
+  const recoveryDrops = intervals.map((x: any) => x.recoveryHrDropBpm).filter((v: any): v is number => typeof v === "number" && Number.isFinite(v));
   const streamAnalysis = {
     analyzedActivities: streamMetrics.length,
     sampleCount: (streamResult.data ?? []).reduce((sum, row) => sum + Number(row.sample_count ?? 0), 0),

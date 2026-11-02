@@ -14,7 +14,9 @@
     "react-dom": "19.1.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.75.0",
-    "@likenttt/connect-personal-api-ts": "0.1.0"
+    "@likenttt/connect-personal-api-ts": "0.1.0",
+    "fit-file-parser": "6.2.7",
+    "fflate": "0.8.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",

@@ -68,7 +68,7 @@ export async function GET() {
     tss: a.suffer_score,
   }));
 
-  const ftpW = profile.current_ftp_w ?? 238;
+  const ftpW = Number(profile.current_ftp_w) > 0 ? Number(profile.current_ftp_w) : 238;
   const analytics = analyzeTraining(activities, ftpW);
   const feeling = (status?.feeling ?? "good") as CoachInput["feeling"];
   const availableMinutes = status?.available_minutes ?? 60;

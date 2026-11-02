@@ -6,19 +6,20 @@ type AdjustmentInput = {
   feeling: "great" | "good" | "average" | "tired" | "wrecked";
   availableMinutes: number;
   nightShift: boolean;
+  illness?: boolean;
 };
 
 function sortPlan(plan: PlannedWorkout[]) {
   return [...plan].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function adjustPlan({ plan, date, feeling, availableMinutes, nightShift }: AdjustmentInput): PlannedWorkout[] {
+export function adjustPlan({ plan, date, feeling, availableMinutes, nightShift, illness = false }: AdjustmentInput): PlannedWorkout[] {
   const next = sortPlan(plan).map(p => ({ ...p }));
   const idx = next.findIndex(p => p.date === date);
   if (idx < 0) return next;
 
   const current = next[idx];
-  const forceRest = nightShift || feeling === "wrecked" || availableMinutes <= 0;
+  const forceRest = nightShift || illness || feeling === "wrecked" || availableMinutes <= 0;
 
   if (forceRest) {
     if (current.type === "REST") return next;

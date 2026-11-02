@@ -10,7 +10,7 @@ type CoachData = {
     sleep_minutes: number | null; sleep_score: number | null; resting_hr: number | null;
     hrv_ms: number | null; hrv_status: string | null; body_battery: number | null;
   } | null };
-  analytics: { load7d: number; load28d: number; hours7d: number; hours28d: number; powerHrEfficiency: number | null; hardSessions7d: number; trainingStatus: string; formScore: number | null };
+  analytics: { load7d: number; load28d: number; loadEstimated: boolean; hours7d: number; hours28d: number; powerHrEfficiency: number | null; hardSessions7d: number; trainingStatus: string; formScore: number | null };
   streamAnalysis?: { analyzedActivities: number; hrUsableSessions: number; powerUsableSessions: number; hrOnlySessions: number };
   decision: { decision: string; intensity: string; workoutType: string; durationMinutes: number; confidence: number; reasoning: string; workout: { title: string; steps: {name:string;durationMinutes:number;target:string}[] } | null };
   plan: { plan_date: string; title: string; workout_type: string; duration_minutes: number; status: string }[];
@@ -80,7 +80,7 @@ export default function Home() {
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Metric label="FTP" value={data.athlete.ftpW + " W"} />
-          <Metric label="Obciążenie 7 dni" value={String(data.analytics.load7d)} />
+          <Metric label={data.analytics.loadEstimated ? "Load 7 dni · szacunek" : "Load 7 dni · TSS"} value={String(data.analytics.load7d)} />
           <Metric label="Czas 7 dni" value={data.analytics.hours7d + " h"} />
           <Metric label="Mocne sesje 7 dni" value={String(data.analytics.hardSessions7d)} />
         </section>
@@ -88,7 +88,7 @@ export default function Home() {
         <section className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
             <h2 className="text-xl font-semibold">Ostatnie dane treningowe</h2>
-            <div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Obciążenie 28 dni" value={String(data.analytics.load28d)} /><Metric label="Czas 28 dni" value={data.analytics.hours28d + " h"} /><Metric label="Forma" value={data.analytics.trainingStatus} /><Metric label="Form score" value={data.analytics.formScore == null ? "—" : data.analytics.formScore + "/100"} /></div>
+            <div className="mt-4 grid grid-cols-2 gap-3"><Metric label={data.analytics.loadEstimated ? "Load 28 dni · szacunek" : "Load 28 dni · TSS"} value={String(data.analytics.load28d)} /><Metric label="Czas 28 dni" value={data.analytics.hours28d + " h"} /><Metric label="Forma" value={data.analytics.trainingStatus} /><Metric label="Form score" value={data.analytics.formScore == null ? "—" : data.analytics.formScore + "/100"} /></div>
             <p className="mt-4 text-sm text-slate-400">Sesje ze strumieniami: {data.streamAnalysis?.analyzedActivities ?? 0} · HR użyteczne: {data.streamAnalysis?.hrUsableSessions ?? 0} · Moc użyteczna: {data.streamAnalysis?.powerUsableSessions ?? 0} · Outdoor HR-only: {data.streamAnalysis?.hrOnlySessions ?? 0}</p>
             <Link href="/analysis" className="mt-4 inline-block text-sm text-cyan-300">Przejdź do analizy →</Link>
           </div>

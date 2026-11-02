@@ -12,7 +12,7 @@ type CoachResponse = {
   decision: {
     decision: string; intensity: string; workoutType: string; durationMinutes: number;
     confidence: number; reasoning: string;
-    workout: { title: string; steps: { name: string; durationMinutes: number; target: string; purpose: string }[] } | null;
+    workout: { title: string; type: string; steps: { name: string; durationMinutes: number; target: string; purpose: string }[] } | null;
   };
 };
 

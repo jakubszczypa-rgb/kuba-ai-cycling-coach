@@ -53,19 +53,26 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
 
   // Aerobic decoupling: compare power/HR efficiency in the first and second
   // halves of steady endurance riding (55-78% FTP), only when enough data exists.
-  const aerobic = pairs.filter(p => p.w >= ftpW * 0.55 && p.w <= ftpW * 0.78);
+  const aerobicSegments: typeof pairs[] = [];
+  let currentSegment: typeof pairs = [];
+  let previousTime: number | null = null;
+  for (const point of pairs) {
+    const inRange = point.w >= ftpW * 0.55 && point.w <= ftpW * 0.78;
+    const continuous = previousTime === null || point.t - previousTime <= 3;
+    if (inRange && continuous) currentSegment.push(point);
+    else { if (currentSegment.length) aerobicSegments.push(currentSegment); currentSegment = inRange ? [point] : []; }
+    previousTime = point.t;
+  }
+  if (currentSegment.length) aerobicSegments.push(currentSegment);
+  const aerobic = aerobicSegments.sort((x, y) => y.length - x.length)[0] ?? [];
   let aerobicDecouplingPct: number | null = null;
   if (aerobic.length >= 600) {
     const midpoint = (aerobic[0].t + aerobic[aerobic.length - 1].t) / 2;
     const first = aerobic.filter(p => p.t <= midpoint);
     const second = aerobic.filter(p => p.t > midpoint);
-    const ef1 = avg(first.map(p => p.w)) && avg(first.map(p => p.h))
-      ? avg(first.map(p => p.w))! / avg(first.map(p => p.h))! : null;
-    const ef2 = avg(second.map(p => p.w)) && avg(second.map(p => p.h))
-      ? avg(second.map(p => p.w))! / avg(second.map(p => p.h))! : null;
-    if (ef1 && ef2 && first.length >= 180 && second.length >= 180) {
-      aerobicDecouplingPct = Math.round(((ef1 - ef2) / ef1) * 1000) / 10;
-    }
+    const p1 = avg(first.map(p => p.w)), h1 = avg(first.map(p => p.h));
+    const p2 = avg(second.map(p => p.w)), h2 = avg(second.map(p => p.h));
+    if (p1 && h1 && p2 && h2 && first.length >= 180 && second.length >= 180) aerobicDecouplingPct = Math.round(((p1 / h1 - p2 / h2) / (p1 / h1)) * 1000) / 10;
   }
 
   // Detect sustained work intervals from a 30-second rolling average above 88% FTP.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeStravaStreams, normalizeStravaStreams, resampleToOneHz } from "@/lib/strava/stream-analysis";
+import { analyzeStravaStreams, normalizeStravaStreams, resampleToOneHz } from "./stream-analysis";
 
 function stream(duration: number, wattsAt: (t: number) => number, hrAt: (t: number) => number) {
   return {

@@ -39,7 +39,7 @@ export async function POST() {
       date: row.activity_start,
       durationMin: Math.round(Number(row.duration_sec ?? m.durationSec ?? 0) / 60),
       samples: Number(row.sample_count ?? m.sampleCount ?? 0), coverage,
-      dataQuality: { score, flags: [...new Set(flags)], usableForTrend: score !== null && score >= 60 && flags.length === 0 },
+      dataQuality: { score, flags: [...new Set(flags)], usableForTrend: score !== null && score >= 60 && !flags.some(flag => ["TIME_STREAM_MISSING_INDEX_FALLBACK","POWER_STREAM_LENGTH_MISMATCH","HR_STREAM_LENGTH_MISMATCH","LOW_POWER_COVERAGE","LOW_HR_COVERAGE","LOW_PAIRED_COVERAGE","FTP_HISTORY_MISSING"].includes(flag)) },
       avgPowerW: finite(m.avgPowerW), avgHr: finite(m.avgHr), maxHr: finite(m.maxHr),
       maxPowerW: finite(m.maxPowerW), avgCadence: finite(m.avgCadence), avgSpeedMps: finite(m.avgSpeedMps),
       avgTempC: finite(m.avgTempC), avgGradePct: finite(m.avgGradePct),

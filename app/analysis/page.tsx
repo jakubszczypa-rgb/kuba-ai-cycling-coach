@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { analyzeTraining, type ActivitySample } from "@/lib/coach/analytics";
+import StreamAnalysisPanel from "./stream-analysis-panel";
 
 type ActivityRow = ActivitySample & { sport: string | null; source: "Strava" | "Garmin"; name?: string | null };
 type HealthRow = { date: string; sleepMinutes: number; sleepScore: number | null; avgHr: number | null };
@@ -135,6 +136,8 @@ export default function AnalysisPage() {
         <h2 className="text-xl font-semibold">Efektywność Power / HR</h2>
         <p className="mt-2 text-slate-300">{result.efficiencyTrend === "INSUFFICIENT_DATA" ? "Za mało porównywalnych treningów." : result.efficiencyTrend === "IMPROVING" ? "Trend jest poprawiający się — przy podobnym tętnie uzyskujesz więcej mocy." : result.efficiencyTrend === "DECLINING" ? "Trend spada — trzeba patrzeć na regenerację, obciążenie i jakość treningów." : "Trend jest stabilny."}</p>
       </section>
+
+      <StreamAnalysisPanel />
 
       <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
         <h2 className="text-xl font-semibold">Ostatnie treningi</h2>

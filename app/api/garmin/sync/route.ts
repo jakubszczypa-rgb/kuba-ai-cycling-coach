@@ -37,8 +37,8 @@ async function parseFitZip(zipBytes: Uint8Array): Promise<StravaStreams> {
   if (!entry) throw new Error("GARMIN_FIT_FILE_NOT_FOUND_IN_ARCHIVE");
 
   const parsed = await new FitParser({ force: false }).parseAsync(Buffer.from(entry[1]));
-  const records = Array.isArray((parsed as Record<string, unknown>).records)
-    ? (parsed as Record<string, unknown>).records as Array<Record<string, unknown>>
+  const records = Array.isArray((parsed as unknown as Record<string, unknown>).records)
+    ? (parsed as unknown as Record<string, unknown>).records as Array<Record<string, unknown>>
     : [];
   if (records.length < 2) throw new Error("GARMIN_FIT_HAS_NO_RECORD_SAMPLES");
 

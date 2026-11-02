@@ -141,7 +141,7 @@ export async function GET() {
     streamAnalysis,
   };
 
-  await supabase.from("coach_decisions").upsert({
+  const decisionPayload = {
     athlete_id: profile.id,
     decision_date: date,
     decision: result.decision,
@@ -151,7 +151,15 @@ export async function GET() {
     confidence: result.confidence,
     reasoning: result.reasoning,
     input_snapshot: brief,
-  });
+  };
+  const { data: existingDecision } = await supabase.from("coach_decisions")
+    .select("decision_date").eq("athlete_id", profile.id).eq("decision_date", date).limit(1).maybeSingle();
+  if (existingDecision) {
+    await supabase.from("coach_decisions").update(decisionPayload)
+      .eq("athlete_id", profile.id).eq("decision_date", date);
+  } else {
+    await supabase.from("coach_decisions").insert(decisionPayload);
+  }
 
   return NextResponse.json({
     date,

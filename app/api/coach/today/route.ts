@@ -112,7 +112,8 @@ export async function GET() {
   const intervals = streamMetrics.flatMap(m => Array.isArray(m.intervals) ? m.intervals : []);
   const recoveryDrops = intervals.map((x: any) => x.recoveryHrDropBpm).filter((v: any): v is number => typeof v === "number" && Number.isFinite(v));
   const streamAnalysis = {
-    analyzedActivities: streamMetrics.length,\n    primarySource: "Garmin FIT",
+    analyzedActivities: streamMetrics.length,
+    primarySource: "Garmin FIT",
     sampleCount: streamRows.reduce((sum, row) => sum + Number(row.sample_count ?? 0), 0),
     averageAerobicDecouplingPct: validDecoupling.length ? Math.round(validDecoupling.reduce((a,b)=>a+b,0) / validDecoupling.length * 10) / 10 : null,
     aerobicDecouplingSessions: validDecoupling.length,

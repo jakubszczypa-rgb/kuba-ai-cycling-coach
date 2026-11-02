@@ -141,7 +141,7 @@ export async function GET() {
     streamAnalysis,
   };
 
-  await supabase.from("coach_decisions").insert({
+  await supabase.from("coach_decisions").upsert({
     athlete_id: profile.id,
     decision_date: date,
     decision: result.decision,

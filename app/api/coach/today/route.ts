@@ -51,6 +51,9 @@ export async function GET() {
     supabase.from("plan_days")
       .select("plan_date,title,workout_type,duration_minutes,priority,status")
       .eq("athlete_id", profile.id).gte("plan_date", date).order("plan_date").limit(7),
+    supabase.from("strava_activity_streams").select("metrics,sample_count,activity_start")
+      .eq("athlete_id", profile.id).gte("activity_start", since)
+      .order("activity_start", { ascending: false }).limit(30),
   ]);
 
   if (statusResult.error || activityResult.error || healthResult.error || planResult.error) {
@@ -104,14 +107,16 @@ export async function GET() {
   };
   const brief = {
     ...buildAthleteBrief({
-    goal: profile.primary_goal,
-    ftpW,
-    vo2max: profile.vo2max,
-    feeling,
-    availableMinutes,
-    nightShift,
-    analytics,
-  });
+      goal: profile.primary_goal,
+      ftpW,
+      vo2max: profile.vo2max,
+      feeling,
+      availableMinutes,
+      nightShift,
+      analytics,
+    }),
+    streamAnalysis,
+  };
 
   await supabase.from("coach_decisions").insert({
     athlete_id: profile.id,
@@ -141,6 +146,7 @@ export async function GET() {
       health: healthResult.data?.[0] ?? null,
     },
     analytics,
+    streamAnalysis,
     decision: result,
     plan: planResult.data ?? [],
   });

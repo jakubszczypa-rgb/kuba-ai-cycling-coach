@@ -83,7 +83,15 @@ export default function TodayCoachPage() {
         </div>
         <p className="mt-2 text-slate-400">{result.decision.durationMinutes} min · {result.decision.intensity}</p>
         <p className="mt-4 leading-7 text-slate-300">{result.decision.reasoning}</p>
-        {result.decision.workout && <div className="mt-6 space-y-3"><h3 className="text-xl font-semibold">{result.decision.workout.title}</h3>{result.decision.workout.steps.map((s,i)=><div key={i} className="grid gap-2 rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:grid-cols-[1fr_90px_1fr]"><b>{s.name}</b><span>{s.durationMinutes} min</span><span className="text-cyan-300">{s.target}</span><p className="sm:col-span-3 text-sm text-slate-500">{s.purpose}</p></div>)}</div>}
+        {result.decision.workout && <div className="mt-6 space-y-3"><h3 className="text-xl font-semibold">{result.decision.workout.title}</h3>{result.decision.workout.steps.map((s,i)=><div key={i} className="grid gap-2 rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:grid-cols-[1fr_90px_1fr]"><b>{s.name}</b><span>{s.durationMinutes} min</span><span className="text-cyan-300">{s.target}</span><p className="sm:col-span-3 text-sm text-slate-500">{s.purpose}</p></div>)}
+          <div className="rounded-2xl border border-cyan-900/70 bg-cyan-950/20 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><p className="font-semibold">Gotowy trening do Zwifta</p><p className="mt-1 text-sm text-slate-400">Plik .ZWO z rozgrzewką, blokami pracy, przerwami i schłodzeniem. Trening steruje Kickr Core w ERG Mode.</p></div>
+              <button onClick={() => downloadZwiftWorkout(result)} className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300">Pobierz .ZWO</button>
+            </div>
+            <p className="mt-4 text-xs leading-5 text-slate-500">Mac: Finder → Dokumenty → Zwift → Workouts → folder z Twoim numerem Zwift ID. Wklej plik i uruchom ponownie Zwifta. Trening znajdziesz w Workouts → Custom.</p>
+          </div>
+        </div>}
       </section>}
     </div>
   </main>;
@@ -91,4 +99,50 @@ export default function TodayCoachPage() {
 
 function Metric({label,value}:{label:string;value:string}) {
   return <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5"><p className="text-xs uppercase tracking-wider text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>;
+}
+
+
+function downloadZwiftWorkout(result: CoachResponse) {
+  const workout = result.decision.workout;
+  if (!workout) return;
+
+  const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  const ftp = Math.max(1, result.athlete?.ftpW ?? 238);
+  const nodes = workout.steps.filter(step => step.durationMinutes > 0).map(step => {
+    const seconds = Math.round(step.durationMinutes * 60);
+    const values = [...step.target.matchAll(/(\d+(?:\.\d+)?)/g)].map(match => Number(match[1])).filter(Number.isFinite);
+    const lowWatts = values.length > 1 ? Math.min(values[0], values[1]) : values[0] ?? ftp * 0.5;
+    const highWatts = values.length > 1 ? Math.max(values[0], values[1]) : values[0] ?? ftp * 0.5;
+    const low = Math.max(0.35, Math.min(1.5, lowWatts / ftp));
+    const high = Math.max(low, Math.min(1.5, highWatts / ftp));
+    const name = step.name.toLowerCase();
+    if (name.includes("rozgrzew")) return `<Warmup Duration="${seconds}" PowerLow="${low.toFixed(3)}" PowerHigh="${high.toFixed(3)}" />`;
+    if (name.includes("schł") || name.includes("schlo")) return `<Cooldown Duration="${seconds}" PowerLow="${low.toFixed(3)}" PowerHigh="${high.toFixed(3)}" />`;
+    const target = (low + high) / 2;
+    return `<SteadyState Duration="${seconds}" Power="${target.toFixed(3)}" />`;
+  }).join("\n    ");
+
+  const date = result.date || new Date().toISOString().slice(0, 10);
+  const title = `${workout.title} ${date}`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>Kuba AI Cycling Coach</author>
+  <name>${escapeXml(title.slice(0, 35))}</name>
+  <description>${escapeXml(`${workout.title}. FTP: ${ftp} W. Power targets are exported as a percentage of FTP for Zwift ERG mode.`)}</description>
+  <sportType>bike</sportType>
+  <tags/>
+  <workout>
+    ${nodes}
+  </workout>
+</workout_file>`;
+
+  const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `Kuba-Coach-${date}-${workout.type.toLowerCase()}.zwo`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }

@@ -11,6 +11,7 @@ export default function CheckInPage() {
   const [feeling, setFeeling] = useState<Feeling>("good");
   const [minutes, setMinutes] = useState(60);
   const [nightShift, setNightShift] = useState(false);
+  const [illness, setIllness] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [decision, setDecision] = useState<any>(null);
@@ -41,7 +42,7 @@ export default function CheckInPage() {
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
     const { error: statusError } = await supabase.from("daily_status").upsert({
-      athlete_id: profile.id, date, feeling, available_minutes: minutes, night_shift: nightShift,
+      athlete_id: profile.id, date, feeling, available_minutes: minutes, night_shift: nightShift, illness,
     }, { onConflict: "athlete_id,date" });
 
     if (statusError) {

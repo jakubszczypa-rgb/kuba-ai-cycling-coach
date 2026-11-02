@@ -59,7 +59,8 @@ export async function POST() {
 
   const payload = {
     athlete: { name: profile.name, ftpW, goal: profile.primary_goal },
-    period: "ostatnie 90 dni",\n    primarySource: "Garmin FIT",
+    period: "ostatnie 90 dni",
+    primarySource: "Garmin FIT",
     sessionsAnalyzed: sessions.length,
     totalSamples: sessions.reduce((sum, s) => sum + s.samples, 0),
     sessions,

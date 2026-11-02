@@ -11,7 +11,7 @@ export default function StreamAnalysisPanel() {
   const [selected, setSelected] = useState("");
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Ładowanie zapisanych strumieni...");
+  const [message, setMessage] = useState("Ładowanie zapisanych strumieni...");\n  const [aiLoading, setAiLoading] = useState(false);\n  const [aiAnalysis, setAiAnalysis] = useState("");\n  const [aiError, setAiError] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -66,6 +66,23 @@ export default function StreamAnalysisPanel() {
         </option>)}
       </select>}
     </div>
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button type="button" disabled={aiLoading} onClick={async () => {
+        setAiLoading(true); setAiError(""); setAiAnalysis("");
+        try {
+          const response = await fetch("/api/coach/stream-analysis", { method: "POST" });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || data.error || "Nie udało się wykonać analizy AI.");
+          setAiAnalysis(data.analysis);
+        } catch (error) { setAiError(error instanceof Error ? error.message : "Błąd analizy AI."); }
+        finally { setAiLoading(false); }
+      }} className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">
+        {aiLoading ? "AI analizuje treningi…" : "Analizuj 90 dni przez AI"}
+      </button>
+      <span className="text-xs text-slate-500">Analiza obejmuje zapisane treningi sekundowe, interwały i HR recovery.</span>
+    </div>
+    {aiError && <p className="mt-3 text-sm text-rose-300">{aiError}</p>}
+    {aiAnalysis && <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-cyan-900/60 bg-slate-950/70 p-5 text-sm leading-7 text-slate-200">{aiAnalysis}</div>}
     {items.length === 0 ? <p className="mt-5 rounded-xl bg-slate-950 p-4 text-sm text-slate-400">{message}</p>
       : loading || !detail ? <p className="mt-5 text-sm text-slate-400">Ładowanie szczegółów treningu…</p>
       : <>

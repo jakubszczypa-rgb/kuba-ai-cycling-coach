@@ -9,7 +9,7 @@ type CoachResponse = {
   date?: string;
   athlete?: { ftpW: number };
   today: { feeling: Feeling; availableMinutes: number; nightShift: boolean; illness: boolean; health: any };
-  analytics: { load7d: number; load28d: number; hours7d: number; powerHrEfficiency: number | null; hardSessions7d: number; efficiencyTrend: string };
+  analytics: { load7d: number; load28d: number; loadEstimated?: boolean; hours7d: number; powerHrEfficiency: number | null; hardSessions7d: number; efficiencyTrend: string };
   decision: {
     decision: string; intensity: string; workoutType: string; durationMinutes: number;
     confidence: number; reasoning: string;
@@ -88,8 +88,8 @@ export default function TodayCoachPage() {
       {message && <div className="rounded-2xl border border-rose-900 bg-rose-950/30 p-4 text-rose-200">{message}</div>}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Load 7d" value={String(result?.analytics.load7d ?? "—")} />
-        <Metric label="Load 28d" value={String(result?.analytics.load28d ?? "—")} />
+        <Metric label={result?.analytics.loadEstimated ? "Load 7d · szacunek" : "Load 7d · TSS"} value={String(result?.analytics.load7d ?? "—")} />
+        <Metric label={result?.analytics.loadEstimated ? "Load 28d · szacunek" : "Load 28d · TSS"} value={String(result?.analytics.load28d ?? "—")} />
         <Metric label="Godziny 7d" value={String(result?.analytics.hours7d ?? "—") + " h"} />
         <Metric label="Moc / HR" value={result?.analytics.powerHrEfficiency ? String(result.analytics.powerHrEfficiency) : "—"} />
       </section>

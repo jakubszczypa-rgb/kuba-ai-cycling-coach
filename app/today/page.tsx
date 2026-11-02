@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type Feeling = "great" | "good" | "average" | "tired" | "wrecked";
 
@@ -24,6 +25,7 @@ export default function TodayCoachPage() {
   const [result,setResult]=useState<CoachResponse | null>(null);
   const [loading,setLoading]=useState(true);
   const [message,setMessage]=useState("");
+  const [saving,setSaving]=useState(false);
 
   async function loadCoach() {
     setLoading(true);
@@ -44,7 +46,34 @@ export default function TodayCoachPage() {
     }
   }
 
+
   useEffect(() => { loadCoach(); }, []);
+
+  async function saveCheckInAndRefresh() {
+    setSaving(true);
+    setMessage("");
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Zaloguj się, aby zapisać check-in.");
+      const { data: profile, error: profileError } = await supabase.from("athlete_profile")
+        .select("id").eq("user_id", user.id).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) throw new Error("Nie znaleziono profilu zawodnika.");
+      const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const { error } = await supabase.from("daily_status").upsert({
+        athlete_id: profile.id, date, feeling, available_minutes: minutes,
+        night_shift: nightShift, illness,
+      }, { onConflict: "athlete_id,date" });
+      if (error) throw error;
+      await loadCoach();
+      setMessage("Check-in zapisany. Decyzja coacha została przeliczona.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nie udało się zapisać check-inu.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) return <main className="min-h-screen bg-slate-950 p-8 text-slate-300">Ładowanie prawdziwych danych Garmina i decyzji coacha...</main>;
 
@@ -75,7 +104,7 @@ export default function TodayCoachPage() {
         <label className="flex items-center gap-3"><input type="checkbox" checked={nightShift} onChange={e=>setNightShift(e.target.checked)}/> Jestem po nocnej zmianie</label>
         <label className="flex items-center gap-3"><input type="checkbox" checked={illness} onChange={e=>setIllness(e.target.checked)}/> Jestem chory / nie czuję się dobrze</label>
 
-        <p className="text-sm text-slate-500">Zmień parametry tutaj, a następnie zapisz je przez stronę „Check-in”. Decyzja poniżej jest ostatnią decyzją pobraną z coach engine.</p>
+        <div className="flex flex-wrap items-center gap-3"><button onClick={saveCheckInAndRefresh} disabled={saving} className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 disabled:opacity-50">{saving ? "Zapisuję i przeliczam…" : "Zapisz check-in i przelicz decyzję"}</button><span className="text-sm text-slate-500">Zmiany zostaną zapisane i uwzględnione przez coach engine.</span></div>
       </section>
 
       {result && <section className="rounded-3xl border border-cyan-900 bg-slate-900/70 p-6">

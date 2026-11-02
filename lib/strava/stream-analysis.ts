@@ -65,10 +65,10 @@ export function normalizeStravaStreams(streams: StravaStreams): NormalizedSample
   const speed = aligned("velocity_smooth"), temp = aligned("temp"), grade = aligned("grade_smooth");
   return base.map((t, i) => ({
     t,
-    powerW: watts[i] !== undefined && watts[i]! >= 0 ? watts[i] : null,
-    hrBpm: hr[i] !== undefined && hr[i]! > 0 ? hr[i] : null,
-    cadenceRpm: cadence[i] !== undefined && cadence[i]! >= 0 ? cadence[i] : null,
-    speedMps: speed[i] !== undefined && speed[i]! >= 0 ? speed[i] : null,
+    powerW: watts[i] !== undefined && watts[i] !== null && watts[i] >= 0 ? watts[i] : null,
+    hrBpm: hr[i] !== undefined && hr[i] !== null && hr[i] > 0 ? hr[i] : null,
+    cadenceRpm: cadence[i] !== undefined && cadence[i] !== null && cadence[i] >= 0 ? cadence[i] : null,
+    speedMps: speed[i] !== undefined && speed[i] !== null && speed[i] >= 0 ? speed[i] : null,
     tempC: temp[i] ?? null,
     gradePct: grade[i] ?? null,
   })).filter((p, i, all) => Number.isFinite(p.t) && (i === 0 || p.t > all[i - 1].t));

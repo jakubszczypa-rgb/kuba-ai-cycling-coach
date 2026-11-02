@@ -82,7 +82,7 @@ export default function AnalysisPage() {
       <header>
         <p className="text-sm uppercase tracking-[0.25em] text-cyan-400">OSOBISTY TRENER</p>
         <h1 className="mt-2 text-4xl font-semibold">Moja forma</h1>
-        <p className="mt-2 text-slate-400">Analiza 180 dni treningów ze Stravy + danych regeneracyjnych z Garmina.</p>
+        <p className="mt-2 text-slate-400">Analiza treningów z Garmin Connect (FIT) i danych regeneracyjnych; Strava uzupełnia brakujące aktywności.</p>
       </header>
 
       <section className="rounded-3xl border border-cyan-900/60 bg-slate-900/80 p-6">

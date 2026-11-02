@@ -107,6 +107,11 @@ export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
     .from("strava_activity_streams").select("strava_activity_id,sample_count").eq("athlete_id", athleteId);
   if (existingStreamsError) throw new Error(existingStreamsError.message);
   const streamIds = new Set((existingStreams ?? []).filter(x => Number(x.sample_count) > 0).map(x => Number(x.strava_activity_id)));
+  const { data: ftpHistory, error: ftpHistoryError } = await supabase
+    .from("athlete_ftp_history").select("ftp_w,valid_from_date")
+    .eq("athlete_id", athleteId).order("valid_from_date", { ascending: true });
+  if (ftpHistoryError) throw new Error(ftpHistoryError.message);
+  const history = ftpHistory ?? [];
 
   let saved = 0;
   let streamsSaved = 0;
@@ -146,7 +151,20 @@ export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
     try {
       const streams = await fetchActivityStreams(accessToken, activityId);
       if (!streams || !Array.isArray(streams.time?.data)) { streamsSkipped++; continue; }
-      const metrics = analyzeStravaStreams(streams, ftpW > 0 ? ftpW : 238);
+      const activityDate = start ? start.slice(0, 10) : "";
+      const historical = [...history].reverse().find(item => String(item.valid_from_date) <= activityDate);
+      const effectiveFtp = historical ? Number(historical.ftp_w) : (ftpW > 0 ? ftpW : 238);
+      const calculated = analyzeStravaStreams(streams, effectiveFtp);
+      const metrics = {
+        ...calculated,
+        ftpW: effectiveFtp,
+        ftpSource: historical ? "athlete_ftp_history" : "current_profile_fallback",
+        indoor: Boolean(a.trainer) || type === "VirtualRide",
+        dataQuality: {
+          ...calculated.dataQuality,
+          flags: historical ? calculated.dataQuality.flags : [...calculated.dataQuality.flags, "FTP_HISTORY_MISSING"],
+        },
+      };
       const streamTypes = Object.keys(streams).filter(key => Array.isArray(streams[key]?.data));
       const { error: streamError } = await supabase.from("strava_activity_streams").upsert({
         athlete_id: athleteId,

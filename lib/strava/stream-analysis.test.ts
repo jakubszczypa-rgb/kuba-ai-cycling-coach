@@ -34,6 +34,23 @@ describe("Strava stream normalization and physiology metrics", () => {
     expect(grid[2].powerW).toBeNull();
   });
 
+  it("treats an outdoor HR-only ride as useful data without penalizing missing power", () => {
+    const metrics = analyzeStravaStreams({
+      time: { data: Array.from({ length: 120 }, (_, t) => t) },
+      heartrate: { data: Array.from({ length: 120 }, (_, t) => 125 + (t % 8)) },
+      cadence: { data: Array.from({ length: 120 }, () => 82) },
+      velocity_smooth: { data: Array.from({ length: 120 }, () => 7.5) },
+      temp: { data: Array.from({ length: 120 }, () => 12) },
+    }, 238);
+    expect(metrics.coverage.power).toBe(0);
+    expect(metrics.coverage.heartRate).toBe(100);
+    expect(metrics.signalQuality.heartRate).toBe(100);
+    expect(metrics.availableSignals).toContain("temperature");
+    expect(metrics.dataQuality.score).toBeGreaterThan(80);
+    expect(metrics.avgPowerW).toBeNull();
+    expect(metrics.powerHrEfficiency).toBeNull();
+  });
+
   it("keeps real zero-watt coasting but excludes it from power/HR efficiency", () => {
     const metrics = analyzeStravaStreams({
       time: { data: [0, 1, 2, 3] },

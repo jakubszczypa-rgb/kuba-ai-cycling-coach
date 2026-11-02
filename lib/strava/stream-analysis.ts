@@ -17,6 +17,7 @@ export type StreamMetrics = {
   aerobicDecouplingPct: number | null;
   aerobicSamples: number;
   timeInPowerZonesSec: Record<string, number>;
+  timeline30s: Array<{ t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }>;
   intervals: Array<{
     startSec: number; endSec: number; durationSec: number;
     avgPowerW: number; avgCadence: number | null; avgHr: number | null; maxHr: number | null;
@@ -48,6 +49,11 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
   }
   const avg = (xs: number[]) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
   const max = (xs: number[]) => xs.length ? Math.max(...xs) : null;
+  const timeline30s: StreamMetrics["timeline30s"] = [];
+  for (let i = 0; i < n; i += 30) {
+    const blockAvg = (values: Array<number | null>) => avg(values.slice(i, i + 30).filter((v): v is number => v !== null));
+    timeline30s.push({ t: time[i] ?? i, powerW: blockAvg(watts), hrBpm: blockAvg(hr), cadenceRpm: blockAvg(cadence) });
+  }
   const powerValues = watts.filter((v): v is number => v !== null);
   const hrValues = hr.filter((v): v is number => v !== null);
   const durationSec = time.length ? Number(time[time.length - 1] ?? 0) : n;
@@ -151,6 +157,7 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
     aerobicDecouplingPct,
     aerobicSamples: aerobic.length,
     timeInPowerZonesSec: zones,
+    timeline30s,
     intervals,
   };
 }

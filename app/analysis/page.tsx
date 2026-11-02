@@ -34,15 +34,15 @@ export default function AnalysisPage() {
       if (stravaError && garminError) { setMessage("Nie udało się pobrać treningów: " + (stravaError.message || garminError.message)); return; }
       if (healthError) console.warn("Garmin health:", healthError.message);
 
-      const strava = (stravaData ?? []).map((a: any) => ({
+      const strava: ActivityRow[] = (stravaData ?? []).map((a: any) => ({
         date: a.activity_start, durationMinutes: (a.duration_sec ?? 0) / 60, avgPowerW: a.avg_power_w,
         normalizedPowerW: a.weighted_power_w, avgHr: a.avg_hr, tss: a.suffer_score, sport: a.sport,
         source: "Strava" as const, name: a.name,
       }));
-      const garmin = (garminData ?? []).map((a: any) => ({
+      const garmin: ActivityRow[] = (garminData ?? []).map((a: any) => ({
         date: a.activity_start, durationMinutes: (a.duration_sec ?? 0) / 60, avgPowerW: a.avg_power_w,
         normalizedPowerW: a.normalized_power_w, avgHr: a.avg_hr, tss: a.tss, sport: a.sport,
-        source: "Garmin" as const,
+        source: "Garmin" as const, name: null,
       }));
 
       // Strava is the main training history. Add Garmin-only activities so Garmin data is not lost.
@@ -107,7 +107,8 @@ export default function AnalysisPage() {
         <ChartCard title="Tygodniowy czas treningu" subtitle="Godziny z ostatnich 12 tygodni">
           <Bars data={weekly.slice(-12).map(x => ({ label: x.label, value: x.hours }))} suffix=" h" />
         </ChartCard>
-        <ChartCard title="Średnia moc vs HR" subtitle="Każdy tydzień, gdy dostępne są dane mocy">
+        <ChartCard title="Średnia moc i tętno" subtitle="Dwa osobne słupki na tydzień; wartości opisane po najechaniu">
+          <div className="mb-3 flex gap-4 text-xs text-slate-400"><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-cyan-500"/> Moc (W)</span><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-amber-500"/> Tętno (bpm)</span></div>
           <DualBars data={weekly.slice(-12).map(x => ({ label: x.label, a: x.avgPower, b: x.avgHr }))} />
         </ChartCard>
       </section>
@@ -172,8 +173,8 @@ function buildWeekly(rows: ActivityRow[]) {
 function buildNarrative(rows: ActivityRow[], health: HealthRow[], ftp: number) {
   if (!rows.length) return { headline: "Czekam na treningi", body: "Brak danych treningowych do oceny." };
   const now = new Date(rows[0].date).getTime();
-  const recent = rows.filter(r => now - new Date(r.date).getTime() <= 28*86400000);
-  const previous = rows.filter(r => now - new Date(r.date).getTime() > 28*86400000 && now - new Date(r.date).getTime() <= 56*86400000);
+  const recent = rows.filter(r => now - new Date(r.date).getTime() <= 90*86400000);
+  const previous = rows.filter(r => now - new Date(r.date).getTime() > 90*86400000 && now - new Date(r.date).getTime() <= 180*86400000);
   const avg = (xs: number[]) => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : null;
   const rp = avg(recent.map(x=>Number(x.avgPowerW)).filter(Number.isFinite));
   const pp = avg(previous.map(x=>Number(x.avgPowerW)).filter(Number.isFinite));
@@ -186,8 +187,8 @@ function buildNarrative(rows: ActivityRow[], health: HealthRow[], ftp: number) {
   const efficiency = rp && rh && pp && ph ? Math.round(((rp/rh)/(pp/ph)-1)*100) : null;
   const headline = efficiency !== null && efficiency > 3 ? "Wygląda na to, że forma idzie w górę." : efficiency !== null && efficiency < -3 ? "Ostatnie tygodnie wyglądają na słabsze." : "Forma jest obecnie raczej stabilna.";
   const parts = [
-    `Na podstawie ${rows.length} treningów z około 180 dni trener widzi ${recent.length} jednostek w ostatnich 28 dniach.`,
-    powerChange !== null ? `Średnia moc w ostatnich 28 dniach zmieniła się o ${powerChange > 0 ? "+" : ""}${powerChange}% względem poprzednich 28 dni${hrChange !== null ? `, przy zmianie średniego HR o ${hrChange > 0 ? "+" : ""}${hrChange}%` : ""}.` : "Dla części treningów brakuje porównywalnej mocy, więc trend mocy trzeba traktować ostrożnie.",
+    `Na podstawie ${rows.length} treningów trener porównuje teraz ostatnie 90 dni (${recent.length} jednostek) z poprzednimi 90 dniami (${previous.length} jednostek).`,
+    powerChange !== null ? `Średnia moc z ostatnich 90 dni zmieniła się o ${powerChange > 0 ? "+" : ""}${powerChange}% względem poprzednich 90 dni${hrChange !== null ? `, przy zmianie średniego HR o ${hrChange > 0 ? "+" : ""}${hrChange}%` : ""}.` : "Dla części treningów brakuje porównywalnej mocy, więc trend mocy trzeba traktować ostrożnie.",
     efficiency !== null ? `Wskaźnik mocy względem HR zmienił się o ${efficiency > 0 ? "+" : ""}${efficiency}%. To jest obecnie najważniejszy sygnał wydolności tlenowej w tej analizie.` : "",
     sleepAvg ? `Garmin pokazuje średnio około ${Math.round(sleepAvg/6)/10} h snu na noc w ostatnich 7 dniach — ten sygnał będzie uwzględniany przy decyzji o intensywności.` : "",
     `FTP używany przez trenera: ${ftp} W. Sam wynik FTP nie jest jeszcze automatycznie podnoszony tylko dlatego, że pojedynczy trening był mocny.`

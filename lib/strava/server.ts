@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
+import { analyzeStravaStreams, type StravaStreams } from "@/lib/strava/stream-analysis";
 
 const API = "https://www.strava.com/api/v3";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
@@ -49,7 +50,28 @@ async function getConnection(athleteId: string) {
   return { supabase, connection: data };
 }
 
-export async function syncStrava(athleteId: string, days = 180) {
+async function fetchActivityStreams(accessToken: string, activityId: number): Promise<StravaStreams | null> {
+  const keys = "time,watts,heartrate,cadence,velocity_smooth,altitude,distance,temp,grade_smooth";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const response = await fetch(`${API}/activities/${activityId}/streams?keys=${keys}&key_by_type=true&resolution=high`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    if (response.status === 429) {
+      const retryAfter = Number(response.headers.get("Retry-After") ?? 60);
+      if (attempt === 3) throw new Error("STRAVA_RATE_LIMITED_STREAMS");
+      await new Promise(resolve => setTimeout(resolve, Math.max(5, Math.min(retryAfter, 120)) * 1000));
+      continue;
+    }
+    if (response.status === 404 || response.status === 403) return null;
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.message || `STRAVA_STREAMS_HTTP_${response.status}`);
+    return data as StravaStreams;
+  }
+  return null;
+}
+
+export async function syncStrava(athleteId: string, days = 180, ftpW = 238) {
   const { supabase, connection } = await getConnection(athleteId);
   let accessToken = connection.access_token as string;
   let refreshToken = connection.refresh_token as string;

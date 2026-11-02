@@ -57,12 +57,12 @@ export function analyzeStravaStreams(streams: StravaStreams, ftpW: number): Stre
   const powerValues = watts.filter((v): v is number => v !== null);
   const hrValues = hr.filter((v): v is number => v !== null);
   const durationSec = time.length ? Number(time[time.length - 1] ?? 0) : n;
-  const zones: Record<string, number> = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0, z6: 0 };
+  const zones: Record<string, number> = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0, z6: 0, z7: 0 };
   const bounds = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5].map(x => x * ftpW);
   for (let i = 0; i < watts.length; i++) {
     const w = watts[i];
     if (w === null) continue;
-    const z = w < bounds[0] ? "z1" : w < bounds[1] ? "z2" : w < bounds[2] ? "z3" : w < bounds[3] ? "z4" : w < bounds[4] ? "z5" : w < bounds[5] ? "z6" : "z6";
+    const z = w < bounds[0] ? "z1" : w < bounds[1] ? "z2" : w < bounds[2] ? "z3" : w < bounds[3] ? "z4" : w < bounds[4] ? "z5" : w < bounds[5] ? "z6" : "z7";
     zones[z]++;
   }
 

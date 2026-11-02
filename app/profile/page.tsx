@@ -114,7 +114,28 @@ export default function ProfilePage() {
       updated_at: new Date().toISOString(),
     }).eq("id", profile.id);
 
-    setMessage(error ? "Nie udało się zapisać profilu." : "Profil zapisany.");
+    if (error) {
+      setMessage("Nie udało się zapisać profilu.");
+      setSaving(false);
+      return;
+    }
+
+    // Record the FTP value from the date it is saved. Historical entries must
+    // be backfilled with the athlete's real change dates, never guessed.
+    if (profile.current_ftp_w && profile.current_ftp_w > 0) {
+      const validFromDate = new Date().toISOString().slice(0, 10);
+      const { error: ftpError } = await supabase.from("athlete_ftp_history").upsert({
+        athlete_id: profile.id,
+        ftp_w: Math.round(profile.current_ftp_w),
+        valid_from_date: validFromDate,
+        source: "profile_update",
+      }, { onConflict: "athlete_id,valid_from_date" });
+      setMessage(ftpError
+        ? "Profil zapisany, ale nie udało się zapisać historii FTP: " + ftpError.message
+        : "Profil i historia FTP zapisane.");
+    } else {
+      setMessage("Profil zapisany. Brak FTP — historia FTP nie została zmieniona.");
+    }
     setSaving(false);
   }
 

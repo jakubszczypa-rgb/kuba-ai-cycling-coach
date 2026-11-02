@@ -10,6 +10,7 @@ export type ActivitySample = {
 export type TrainingAnalytics = {
   load7d: number;
   load28d: number;
+  loadEstimated: boolean;
   hours7d: number;
   hours28d: number;
   powerHrEfficiency: number | null;
@@ -22,6 +23,7 @@ export type TrainingAnalytics = {
   avgPower7d: number | null;
   avgHr7d: number | null;
   consistency7d: number;
+  powerHrSessions7d: number;
 };
 
 function daysAgo(days: number) {
@@ -31,47 +33,53 @@ function daysAgo(days: number) {
 }
 
 function loadFor(a: ActivitySample) {
-  return a.tss ?? ((a.durationMinutes / 60) * 50);
+  // Garmin/Strava TSS is preferred. Duration-based load is an estimate, never presented as measured TSS.
+  return typeof a.tss === "number" && Number.isFinite(a.tss) && a.tss >= 0
+    ? a.tss
+    : Math.max(0, a.durationMinutes) * 50 / 60;
 }
 
 export function analyzeTraining(activities: ActivitySample[], ftpW = 238): TrainingAnalytics {
   const cutoff7 = daysAgo(7);
   const cutoff28 = daysAgo(28);
-  const recent = activities.filter(a => new Date(a.date) >= cutoff7);
-  const month = activities.filter(a => new Date(a.date) >= cutoff28);
+  const valid = activities.filter(a => Number.isFinite(new Date(a.date).getTime()) && Number.isFinite(a.durationMinutes) && a.durationMinutes > 0);
+  const recent = valid.filter(a => new Date(a.date) >= cutoff7);
+  const month = valid.filter(a => new Date(a.date) >= cutoff28);
 
+  const paired = (list: ActivitySample[]) => list.filter(a =>
+    typeof a.avgPowerW === "number" && a.avgPowerW > 0 &&
+    typeof a.avgHr === "number" && a.avgHr > 0 && a.durationMinutes >= 30
+  );
   const efficiency = (list: ActivitySample[]) => {
-    const pairs = list
-      .filter(a => (a.avgPowerW ?? 0) > 0 && (a.avgHr ?? 0) > 0 && a.durationMinutes >= 30)
-      .map(a => a.avgPowerW! / a.avgHr!);
-    return pairs.length ? pairs.reduce((s, v) => s + v, 0) / pairs.length : null;
+    const pairs = paired(list).map(a => a.avgPowerW! / a.avgHr!);
+    return pairs.length ? pairs.reduce((sum, value) => sum + value, 0) / pairs.length : null;
   };
 
   const recentEfficiency = efficiency(recent);
-  const older = month.filter(a => new Date(a.date) < cutoff7);
-  const olderEfficiency = efficiency(older);
-
+  const olderEfficiency = efficiency(month.filter(a => new Date(a.date) < cutoff7));
   let efficiencyTrend: TrainingAnalytics["efficiencyTrend"] = "INSUFFICIENT_DATA";
-  if (recentEfficiency !== null && olderEfficiency !== null) {
+  if (recentEfficiency !== null && olderEfficiency !== null && olderEfficiency > 0) {
     const change = (recentEfficiency - olderEfficiency) / olderEfficiency;
     efficiencyTrend = change > 0.03 ? "IMPROVING" : change < -0.03 ? "DECLINING" : "STABLE";
   }
 
-  const load7d = recent.reduce((s, a) => s + loadFor(a), 0);
-  const load28d = month.reduce((s, a) => s + loadFor(a), 0);
+  const load7d = recent.reduce((sum, a) => sum + loadFor(a), 0);
+  const load28d = month.reduce((sum, a) => sum + loadFor(a), 0);
   const hardSessions7d = recent.filter(a => {
-    const tss = loadFor(a);
-    return tss >= 60 || (a.avgPowerW ?? 0) > 0 && (a.avgPowerW! >= 0.88 * ftpW);
+    if (typeof a.tss === "number" && Number.isFinite(a.tss)) return a.tss >= 60;
+    return typeof a.avgPowerW === "number" && a.avgPowerW >= 0.88 * ftpW && a.durationMinutes >= 20;
   }).length;
 
   const efficiencyChangePct = recentEfficiency !== null && olderEfficiency !== null && olderEfficiency > 0
     ? Math.round(((recentEfficiency - olderEfficiency) / olderEfficiency) * 1000) / 10
     : null;
-  const avgPower7d = recent.length ? Math.round(recent.reduce((s,a) => s + (a.avgPowerW ?? 0), 0) / recent.length) : null;
-  const hrValues = recent.filter(a => (a.avgHr ?? 0) > 0);
-  const avgHr7d = hrValues.length ? Math.round(hrValues.reduce((s,a) => s + (a.avgHr ?? 0), 0) / hrValues.length) : null;
+  const powerRows = recent.filter(a => typeof a.avgPowerW === "number" && a.avgPowerW > 0);
+  const hrRows = recent.filter(a => typeof a.avgHr === "number" && a.avgHr > 0);
+  const avgPower7d = powerRows.length ? Math.round(powerRows.reduce((sum, a) => sum + a.avgPowerW!, 0) / powerRows.length) : null;
+  const avgHr7d = hrRows.length ? Math.round(hrRows.reduce((sum, a) => sum + a.avgHr!, 0) / hrRows.length) : null;
   const consistency7d = Math.min(100, Math.round((recent.length / 4) * 100));
   const loadRatio = load28d ? load7d / load28d : 0;
+  const loadEstimated = [...recent, ...month.filter(a => !recent.includes(a))].some(a => typeof a.tss !== "number" || !Number.isFinite(a.tss));
   let trainingStatus: TrainingAnalytics["trainingStatus"] = "INSUFFICIENT_DATA";
   let formScore: number | null = null;
   if (month.length >= 3) {
@@ -85,8 +93,9 @@ export function analyzeTraining(activities: ActivitySample[], ftpW = 238): Train
   return {
     load7d: Math.round(load7d),
     load28d: Math.round(load28d),
-    hours7d: Math.round(recent.reduce((s, a) => s + a.durationMinutes / 60, 0) * 10) / 10,
-    hours28d: Math.round(month.reduce((s, a) => s + a.durationMinutes / 60, 0) * 10) / 10,
+    loadEstimated,
+    hours7d: Math.round(recent.reduce((sum, a) => sum + a.durationMinutes / 60, 0) * 10) / 10,
+    hours28d: Math.round(month.reduce((sum, a) => sum + a.durationMinutes / 60, 0) * 10) / 10,
     powerHrEfficiency: recentEfficiency ? Math.round(recentEfficiency * 100) / 100 : null,
     efficiencyTrend,
     loadRatio7to28: load28d ? Math.round((load7d / load28d) * 100) / 100 : 0,
@@ -97,5 +106,6 @@ export function analyzeTraining(activities: ActivitySample[], ftpW = 238): Train
     avgPower7d,
     avgHr7d,
     consistency7d,
+    powerHrSessions7d: paired(recent).length,
   };
 }

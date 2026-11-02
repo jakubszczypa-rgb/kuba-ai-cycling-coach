@@ -41,13 +41,19 @@ export async function POST() {
     let drift = finite(m.aerobicDecouplingPct);
     if (drift !== null && (drift < -30 || drift > 30)) { flags.push("DECOUPLING_OUTSIDE_SANITY_RANGE"); drift = null; }
     const coverage = m.coverage ?? null;
-    if (Number(coverage?.power) < 70) flags.push("POWER_COVERAGE_BELOW_70");
-    if (Number(coverage?.heartRate) < 70) flags.push("HR_COVERAGE_BELOW_70");
+    const timebaseValid = !flags.includes("TIME_STREAM_MISSING_INDEX_FALLBACK");
+    const hrCoverage = Number(coverage?.heartRate);
+    const powerCoverage = Number(coverage?.power);
+    const usableForHrTrend = timebaseValid && Number.isFinite(hrCoverage) && hrCoverage >= 70 && !flags.includes("HR_STREAM_LENGTH_MISMATCH");
+    const usableForPowerTrend = timebaseValid && Number.isFinite(powerCoverage) && powerCoverage >= 70 && !flags.includes("POWER_STREAM_LENGTH_MISMATCH");
+    const usableForPairedAnalysis = usableForPowerTrend && usableForHrTrend && Number(coverage?.paired) >= 70;
+    if (Number.isFinite(powerCoverage) && powerCoverage < 70) flags.push("POWER_COVERAGE_BELOW_70");
+    if (Number.isFinite(hrCoverage) && hrCoverage < 70) flags.push("HR_COVERAGE_BELOW_70");
     return {
       date: row.activity_start,
       durationMin: Math.round(Number(row.duration_sec ?? m.durationSec ?? 0) / 60),
       samples: Number(row.sample_count ?? m.sampleCount ?? 0), coverage,
-      dataQuality: { score, flags: [...new Set(flags)], usableForTrend: score !== null && score >= 60 && !flags.some(flag => ["TIME_STREAM_MISSING_INDEX_FALLBACK","POWER_STREAM_LENGTH_MISMATCH","HR_STREAM_LENGTH_MISMATCH","LOW_POWER_COVERAGE","LOW_HR_COVERAGE","LOW_PAIRED_COVERAGE","FTP_HISTORY_MISSING"].includes(flag)) },
+      dataQuality: { score, flags: [...new Set(flags)], usableForTrend: usableForHrTrend || usableForPowerTrend, usableForHrTrend, usableForPowerTrend, usableForPairedAnalysis, usableForAerobicDecoupling: usableForPairedAnalysis && drift !== null, usableForIntervals: usableForPowerTrend && Array.isArray(m.intervals) && m.intervals.length > 0 },
       avgPowerW: finite(m.avgPowerW), avgHr: finite(m.avgHr), maxHr: finite(m.maxHr),
       maxPowerW: finite(m.maxPowerW), avgCadence: finite(m.avgCadence), avgSpeedMps: finite(m.avgSpeedMps),
       avgTempC: finite(m.avgTempC), avgGradePct: finite(m.avgGradePct),
@@ -77,11 +83,11 @@ export async function POST() {
       messages: [
         {
           role: "system",
-          content: "Jesteś trenerem kolarstwa wytrzymałościowego i analitykiem danych. Odpowiadasz po polsku, konkretnie i krytycznie. Nie diagnozuj medycznie, nie wymyślaj danych. Oddziel fakty od hipotez. Zwróć czytelny raport z sekcjami: Najważniejsze wnioski; Dryf tętna i baza tlenowa; Reakcja HR na interwały i regeneracja; Relacja moc–HR w czasie; Rekomendacje treningowe; Ograniczenia danych. Porównuj podobne zakresy mocy. Jeżeli danych jest za mało, powiedz to wprost. Nie traktuj indoor i outdoor jako bezpośrednio porównywalnych bez zastrzeżeń."
+          content: "Jesteś trenerem kolarstwa wytrzymałościowego i analitykiem danych. Odpowiadasz po polsku, konkretnie i krytycznie. Nie diagnozuj medycznie, nie wymyślaj danych. Oddziel fakty od hipotez. Zwróć czytelny raport z sekcjami: Najważniejsze wnioski; Dryf tętna i baza tlenowa; Reakcja HR na interwały i regeneracja; Relacja moc–HR w czasie; Rekomendacje treningowe; Ograniczenia danych. Bardzo ważne: brak pomiaru mocy na rowerze outdoor jest normalny i NIE oznacza złej jakości treningu. Oceniaj jakość osobno dla każdego sygnału. Jazdy bez mocy wykorzystuj do analizy tętna, czasu, prędkości, przewyższeń, temperatury i kadencji, jeśli są dostępne. Nie używaj ich do FTP, stref mocy, interwałów mocy, efektywności moc/HR ani decouplingu. Trenażer z mocą i tętnem wykorzystuj do tych analiz. Nie porównuj bezpośrednio prędkości indoor/outdoor. Nie odrzucaj całej sesji z powodu braku jednego sygnału. Porównuj podobne warunki i zakresy mocy. Jeżeli danych jest za mało, powiedz to wprost."
         },
         {
           role: "user",
-          content: "Przeanalizuj sesje z ostatnich 90 dni. Preferuj Garmin FIT jako źródło podstawowe; Strava może uzupełniać wyłącznie aktywności, których nie ma w Garmin. Sesje z dataQuality.usableForTrend=false nie mogą być podstawą wniosków o formie. Metryki null oznaczają brak wiarygodnego wyniku — nie uzupełniaj ich. Porównuj podobne warunki indoor/outdoor i zakresy mocy. Dryf oceniaj tylko, gdy metryka istnieje. Podawaj liczby i ograniczenia. Dane: " + JSON.stringify(payload)
+          content: "Przeanalizuj sesje z ostatnich 90 dni. Preferuj Garmin FIT jako źródło podstawowe; Strava uzupełnia wyłącznie brakujące aktywności. Oceniaj każdą metrykę według jej własnego dataQuality: usableForHrTrend, usableForPowerTrend, usableForPairedAnalysis, usableForAerobicDecoupling i usableForIntervals. Sesja HR-only może być użyta do trendów tętna i obciążenia, nawet jeśli nie ma mocy. Brak mocy nie jest błędem. Nie wyciągaj z HR-only wniosków o FTP, strefach mocy, interwałach mocy, efektywności moc/HR ani decouplingu. Metryki null oznaczają brak wiarygodnego wyniku — nie uzupełniaj ich. Nie odrzucaj całej sesji, jeśli niedostępny jest tylko jeden sygnał. Porównuj podobne warunki indoor/outdoor i zakresy mocy. Podawaj liczby i ograniczenia. Dane: " + JSON.stringify(payload)
         }
       ],
       max_completion_tokens: 5000,

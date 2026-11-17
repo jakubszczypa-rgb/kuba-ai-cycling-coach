@@ -38,10 +38,21 @@ export default function Home() {
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.hash.startsWith("#bp-auth")) {
+    const hash = url.hash;
+    const params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+    const accessToken = params.get("access_token");
+    let issuer = "";
+    if (accessToken) {
+      try {
+        const payloadPart = accessToken.split(".")[1];
+        const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((payloadPart.length + 3) % 4);
+        issuer = JSON.parse(window.atob(normalized)).iss ?? "";
+      } catch {}
+    }
+    if (hash.includes("bp-auth") || issuer === "https://skvsucbifvuhjebewubb.supabase.co/auth/v1") {
       const target = new URL("https://cisnienie-dashboard-jszczypa-7850.vercel.app/");
       target.search = url.search;
-      target.hash = "";
+      target.hash = hash;
       window.location.replace(target.toString());
     }
   }, []);

@@ -36,6 +36,16 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.hash.startsWith("#bp-auth")) {
+      const target = new URL("https://cisnienie-dashboard-jszczypa-7850.vercel.app/");
+      target.search = url.search;
+      target.hash = "";
+      window.location.replace(target.toString());
+    }
+  }, []);
+
   useEffect(() => { void refresh(); }, [refresh]);
 
   if (loading) return <main className="min-h-screen bg-slate-950 p-6 text-slate-300"><div className="mx-auto max-w-6xl">Ładowanie Twojego dashboardu treningowego…</div></main>;
